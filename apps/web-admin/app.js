@@ -60,6 +60,31 @@ function showToast(message) {
   window.setTimeout(() => toast.classList.remove("show"), 2600);
 }
 
+function runInteraction(trigger, action, busyLabel = "处理中...") {
+  const button = trigger instanceof HTMLButtonElement ? trigger : null;
+  const previousText = button?.textContent;
+  if (button) {
+    button.disabled = true;
+    button.textContent = busyLabel;
+  }
+  Promise.resolve()
+    .then(action)
+    .catch((error) => {
+      showToast(error instanceof Error ? error.message : "操作失败，请重试");
+    })
+    .finally(() => {
+      if (button && button.isConnected) {
+        button.disabled = false;
+        button.textContent = previousText || "";
+      }
+    });
+}
+
+function runFormInteraction(form, action, busyLabel = "提交中...") {
+  const submitButton = form.querySelector('button[type="submit"]');
+  runInteraction(submitButton instanceof HTMLButtonElement ? submitButton : form, action, busyLabel);
+}
+
 function subjectName(subjectId) {
   return state.subjects.find((subject) => subject.id === subjectId)?.name ?? subjectId;
 }
@@ -147,7 +172,7 @@ function renderEntry() {
   app.innerHTML = `
     <section class="entry-page">
       <div class="entry-brand">
-        <span class="brand-mark">E</span>
+        <span class="brand-mark">+</span>
         <div>
           <p class="eyebrow">EvoMap MVP</p>
           <h1>医疗康复双入口</h1>
@@ -562,12 +587,23 @@ function renderDoctorSubjectDetail(subject) {
   const candidate = dashboard.suggestions.find((item) => item.subjectId === subject.id && item.status === "candidate");
   const feedback = dashboard.pendingFeedback.find((item) => item.subjectId === subject.id);
   const reminder = dashboard.openReminders.find((item) => item.subjectId === subject.id);
-  const issueTitle = candidate?.title || feedback?.symptoms || reminder?.title || "暂无待处理事项";
+  const subjectSuggestions = dashboard.suggestions.filter((item) => item.subjectId === subject.id).slice(0, 3);
+  const currentSuggestion = candidate || subjectSuggestions[0] || null;
+  const actionableSuggestion = currentSuggestion?.status === "candidate" ? currentSuggestion : null;
+  const subjectFeedback = dashboard.pendingFeedback.filter((item) => item.subjectId === subject.id).slice(0, 3);
+  const subjectReminders = dashboard.openReminders.filter((item) => item.subjectId === subject.id).slice(0, 3);
+  const treatmentRecords = state.visits.filter((item) => item.subjectId === subject.id);
+  const medicationRecords = state.medications.filter((item) => item.subjectId === subject.id);
+  const issueTitle = currentSuggestion?.title || feedback?.symptoms || reminder?.title || "暂无待处理事项";
   const issueDetail =
-    candidate?.summary ||
+    currentSuggestion?.summary ||
     (feedback ? `家属反馈：${feedback.symptoms}，体温 ${feedback.temperatureC ?? "-"}℃，疼痛 ${feedback.painScore ?? "-"}` : "") ||
     (reminder ? `${reminderTypeLabel(reminder.type)}提醒，截止 ${reminder.dueAt}` : "当前患者暂无需要立即处理的事项。");
-  const evidence = candidate?.evidence || (reminder ? [reminderTypeLabel(reminder.type), reminder.dueAt] : []);
+  const evidence = currentSuggestion?.evidence || (reminder ? [reminderTypeLabel(reminder.type), reminder.dueAt] : []);
+  const riskLabel = currentSuggestion?.riskLevel === "medium" ? "中等关注" : subject.risk === "warning" ? "需关注" : "低风险";
+  const nextAction = actionableSuggestion ? "确认这条建议后，再决定是否同步给家属" : reminder ? "处理未完成提醒，必要时重新分析" : "保持随访观察";
+  const actionTitle = actionableSuggestion ? "建议医生处理" : reminder ? "建议处理提醒" : "当前建议";
+  const currentStatusLabel = currentSuggestion ? suggestionStatusLabel(currentSuggestion.status) : "无需立即处理";
   const latestLearning = state.evolutionEvents[0]?.summary || "系统会在医生确认建议后记录脱敏改进经验";
 
   studyTitle.textContent = `${subject.name} · 患者详情`;
@@ -582,50 +618,170 @@ function renderDoctorSubjectDetail(subject) {
         <button class="small-button" data-action="back-doctor-cards">返回患者卡片</button>
       </div>
 
-      <div class="doctor-card-grid">
-        <article class="doctor-card patient-card">
+      <div class="doctor-detail-layout">
+        <aside class="doctor-summary-card">
           <span class="step-label">患者概况</span>
           <h3>${subject.name}</h3>
-          <p>${subject.site} · ${subject.sex} · ${subject.age}岁</p>
+          <p>${subject.site}</p>
+          <div class="detail-grid compact-detail-grid">
+            <div class="detail-cell"><span>性别年龄</span><strong>${subject.sex} · ${subject.age}岁</strong></div>
+            <div class="detail-cell"><span>状态</span><strong>${subject.status}</strong></div>
+            <div class="detail-cell"><span>下次访视</span><strong>${subject.nextVisitDate ?? "未生成"}</strong></div>
+          </div>
           <div class="doctor-card-meta">
-            <span>${subject.status}</span>
-            <span>${subject.risk === "warning" ? "需关注" : "常规"}</span>
+            <span>${riskLabel}</span>
+            <span>${subject.code}</span>
           </div>
-        </article>
+        </aside>
 
-        <article class="doctor-card ai-card">
-          <span class="step-label">AI 建议</span>
-          <h3>${issueTitle}</h3>
-          <p>${issueDetail}</p>
-          <div class="doctor-card-meta">
-            ${evidence.length ? evidence.map((item) => `<span>${item}</span>`).join("") : "<span>无待确认建议</span>"}
-          </div>
-        </article>
+        <main class="doctor-workbench">
+          <article class="doctor-card ai-decision-card">
+            <div class="panel-header compact-header">
+              <div>
+                <span class="step-label">AI 分析</span>
+                <h3>${issueTitle}</h3>
+              </div>
+              <span class="status ${currentSuggestion?.riskLevel === "medium" || subject.risk === "warning" ? "warning" : "normal"}">${riskLabel}</span>
+            </div>
+            <div class="ai-suggestion-body">
+              <div>
+                <span>建议内容</span>
+                <strong>${issueDetail}</strong>
+              </div>
+              <div>
+                <span>判断依据</span>
+                <strong>${evidence.length ? evidence.join(" / ") : "暂无新的家属反馈或未完成提醒"}</strong>
+              </div>
+              <div>
+                <span>${actionTitle}</span>
+                <strong>${nextAction}</strong>
+              </div>
+            </div>
+            <div class="ai-action-bar">
+              <div>
+                <span>处理状态</span>
+                <strong>${currentStatusLabel}</strong>
+              </div>
+              <div class="ai-action-buttons">
+                ${
+                  actionableSuggestion
+                    ? `<button class="primary-button" data-suggestion-status="${actionableSuggestion.id}:accepted">确认建议</button>
+                       <button class="small-button" data-suggestion-status="${actionableSuggestion.id}:sent_to_family">发送给家属</button>
+                       <button class="small-button" data-suggestion-status="${actionableSuggestion.id}:dismissed">暂不处理</button>`
+                    : currentSuggestion
+                      ? ""
+                      : `<button class="primary-button" data-action="run-doctor-analyze">重新生成建议</button>`
+                }
+                ${reminder ? `<button class="small-button" data-complete-reminder="${reminder.id}">提醒已处理</button>` : ""}
+              </div>
+            </div>
+          </article>
 
-        <article class="doctor-card action-card">
-          <span class="step-label">医生动作</span>
-          <h3>确认后再执行</h3>
-          <div class="card-button-stack">
-            ${
-              candidate
-                ? `<button class="primary-button" data-suggestion-status="${candidate.id}:accepted">确认建议</button>
-                   <button class="small-button" data-suggestion-status="${candidate.id}:sent_to_family">发送给家属</button>
-                   <button class="small-button" data-suggestion-status="${candidate.id}:dismissed">暂不处理</button>`
-                : `<button class="primary-button" data-action="run-doctor-analyze">生成建议</button>`
-            }
-            ${reminder ? `<button class="small-button" data-complete-reminder="${reminder.id}">提醒已处理</button>` : ""}
+          <div class="doctor-workbench-grid single-side">
+            <article class="doctor-card">
+              <span class="step-label">家属反馈与提醒</span>
+              <h3>${subjectFeedback.length + subjectReminders.length} 项待关注</h3>
+              <div class="doctor-mini-list">
+                ${
+                  subjectFeedback.length
+                    ? subjectFeedback.map((item) => `<p><strong>反馈</strong><span>${item.symptoms} · 疼痛 ${item.painScore ?? "-"}</span></p>`).join("")
+                    : ""
+                }
+                ${
+                  subjectReminders.length
+                    ? subjectReminders.map((item) => `<p><strong>${reminderTypeLabel(item.type)}</strong><span>${item.title} · ${item.dueAt}</span></p>`).join("")
+                    : ""
+                }
+                ${!subjectFeedback.length && !subjectReminders.length ? "<p><strong>当前</strong><span>没有新的反馈或提醒</span></p>" : ""}
+              </div>
+            </article>
           </div>
-        </article>
 
-        <article class="doctor-card learning-card">
-          <span class="step-label">系统学习</span>
-          <h3>本地脱敏记录</h3>
-          <p>${latestLearning}</p>
-          <div class="doctor-card-meta">
-            <span>${state.evolutionEvents.length} 条记录</span>
-            <span>不上传患者隐私</span>
+          <div class="record-accordion-grid">
+            <details class="record-accordion" open>
+              <summary>
+                <span>治疗记录</span>
+                <strong>${treatmentRecords.length} 条</strong>
+              </summary>
+              <div class="record-list">
+                ${
+                  treatmentRecords.length
+                    ? treatmentRecords
+                        .map(
+                          (visit) => `
+                            <article class="record-row">
+                              <div>
+                                <span>${visit.code} · ${visit.status}</span>
+                                <strong>${visit.name}</strong>
+                              </div>
+                              <div>
+                                <span>计划日期</span>
+                                <strong>${visit.plannedDate}</strong>
+                              </div>
+                              <div>
+                                <span>窗口</span>
+                                <strong>${visit.window}</strong>
+                              </div>
+                              <p>${(visit.tasks || []).join(" / ")}</p>
+                            </article>
+                          `
+                        )
+                        .join("")
+                    : renderEmpty("暂无治疗记录")
+                }
+              </div>
+            </details>
+
+            <details class="record-accordion">
+              <summary>
+                <span>用药记录</span>
+                <strong>${medicationRecords.length} 条</strong>
+              </summary>
+              <div class="record-list">
+                ${
+                  medicationRecords.length
+                    ? medicationRecords
+                        .map(
+                          (medication) => `
+                            <article class="record-row medication-record">
+                              <div>
+                                <span>${medication.status}</span>
+                                <strong>${medication.drug}</strong>
+                              </div>
+                              <div>
+                                <span>剂量</span>
+                                <strong>${medication.dose}</strong>
+                              </div>
+                              <div>
+                                <span>周期 / 下次</span>
+                                <strong>${medication.cycle} · ${medication.nextDoseDate}</strong>
+                              </div>
+                              <p>${medication.status}</p>
+                            </article>
+                          `
+                        )
+                        .join("")
+                    : renderEmpty("暂无用药记录")
+                }
+              </div>
+            </details>
           </div>
-        </article>
+
+          <article class="doctor-card learning-card">
+            <div class="panel-header compact-header">
+              <div>
+                <span class="step-label">系统学习</span>
+                <h3>脱敏改进记录</h3>
+              </div>
+              <span class="status normal">${state.evolutionEvents.length} 条</span>
+            </div>
+            <p>${latestLearning}</p>
+            <div class="doctor-card-meta">
+              ${subjectSuggestions.length ? subjectSuggestions.map((item) => `<span>${item.title}</span>`).join("") : "<span>等待医生动作后记录</span>"}
+              <span>不上传患者隐私</span>
+            </div>
+          </article>
+        </main>
       </div>
     </section>
   `;
@@ -1182,9 +1338,12 @@ function renderFamilyPortal() {
     Array.from({ length: 30 }, (_, index) => ({
       date: `${rehabAdvice.date.slice(0, 8)}${String(index + 1).padStart(2, "0")}`,
       day: index + 1,
-      status: index + 1 === Number(rehabAdvice.date.slice(-2)) ? rehabAdvice.status : "open"
+      status: index + 1 === Number(rehabAdvice.date.slice(-2)) ? rehabAdvice.status : index + 1 > Number(rehabAdvice.date.slice(-2)) ? "future" : "open",
+      canCheckIn: index + 1 === Number(rehabAdvice.date.slice(-2)) && rehabAdvice.status !== "done",
+      isToday: index + 1 === Number(rehabAdvice.date.slice(-2))
     }));
   const completedDays = monthCells.filter((day) => day.status === "done").length;
+  const todayCell = monthCells.find((day) => day.date === rehabAdvice.date);
   studyTitle.textContent = "今天的康复提醒";
   app.innerHTML = `
     <section class="family-shell">
@@ -1223,10 +1382,10 @@ function renderFamilyPortal() {
               .map(
                 (day) => `
                   <button
-                    class="checkin-cell ${day.status === "done" ? "done" : ""} ${day.date === rehabAdvice.date ? "today" : ""}"
-                    data-family-checkin="${day.date}"
-                    title="${day.date}${day.status === "done" ? " 已打卡" : " 未打卡"}"
-                    aria-label="${day.date}${day.status === "done" ? " 已打卡" : " 未打卡"}"
+                    class="checkin-cell ${day.status === "done" ? "done" : ""} ${day.status === "future" ? "future" : ""} ${day.date === rehabAdvice.date ? "today" : ""}"
+                    ${day.canCheckIn ? `data-family-checkin="${day.date}"` : "disabled"}
+                    title="${day.date}${day.status === "done" ? " 已打卡" : day.status === "future" ? " 未到日期" : day.isToday ? " 可打卡" : " 已过期"}"
+                    aria-label="${day.date}${day.status === "done" ? " 已打卡" : day.status === "future" ? " 未到日期" : day.isToday ? " 可打卡" : " 已过期"}"
                   >${day.day}</button>
                 `
               )
@@ -1235,7 +1394,7 @@ function renderFamilyPortal() {
           <div class="checkin-legend">
             <span><i class="legend-box"></i>未打卡</span>
             <span><i class="legend-box done"></i>已打卡</span>
-            <span>${rehabAdvice.status === "done" ? "今日已打卡" : "点击日期打卡"}</span>
+            <span>${todayCell?.status === "done" ? "今日已打卡" : "仅今天可打卡"}</span>
           </div>
         </section>
 
@@ -1503,6 +1662,20 @@ async function submitFamilyFeedback(form) {
 
 async function completeFamilyCheckin(date) {
   const advice = state.familyHome?.rehabAdvice;
+  const today = advice?.date || new Date().toISOString().slice(0, 10);
+  if (date > today) {
+    showToast("未来日期不能提前打卡");
+    return;
+  }
+  if (date < today) {
+    showToast("过去日期不能补打");
+    return;
+  }
+  const day = state.familyHome?.checkinMonth?.find((item) => item.date === date);
+  if (day?.status === "done") {
+    showToast("这一天已经完成打卡");
+    return;
+  }
   await sendJson("/api/family/checkin", "POST", {
     subjectId: state.selectedFamilySubjectId,
     date,
@@ -1576,7 +1749,7 @@ document.addEventListener("click", (event) => {
   }
 
   if (action === "run-doctor-analyze") {
-    runDoctorAnalyze();
+    runInteraction(target, runDoctorAnalyze, "分析中...");
     return;
   }
 
@@ -1602,19 +1775,19 @@ document.addEventListener("click", (event) => {
 
   const suggestionStatus = target.dataset.suggestionStatus;
   if (suggestionStatus) {
-    updateSuggestionStatus(suggestionStatus);
+    runInteraction(target, () => updateSuggestionStatus(suggestionStatus), "更新中...");
     return;
   }
 
   const reminderId = target.dataset.completeReminder;
   if (reminderId) {
-    completeReminder(reminderId);
+    runInteraction(target, () => completeReminder(reminderId), "完成中...");
     return;
   }
 
   const checkinDate = target.dataset.familyCheckin;
   if (checkinDate) {
-    completeFamilyCheckin(checkinDate);
+    runInteraction(target, () => completeFamilyCheckin(checkinDate), "打卡中...");
     return;
   }
 
@@ -1630,25 +1803,25 @@ document.addEventListener("click", (event) => {
 
   const extractionId = target.dataset.confirmExtraction;
   if (extractionId) {
-    confirmExtraction(extractionId);
+    runInteraction(target, () => confirmExtraction(extractionId), "确认中...");
     return;
   }
 
   const visitId = target.dataset.completeVisit;
   if (visitId) {
-    completeVisit(visitId);
+    runInteraction(target, () => completeVisit(visitId), "完成中...");
     return;
   }
 
   const taskId = target.dataset.completeTask;
   if (taskId) {
-    completeTask(taskId);
+    runInteraction(target, () => completeTask(taskId), "完成中...");
     return;
   }
 
   const medicationId = target.dataset.adjustMedication;
   if (medicationId) {
-    adjustMedication(medicationId);
+    runInteraction(target, () => adjustMedication(medicationId), "调整中...");
   }
 });
 
@@ -1658,31 +1831,31 @@ document.addEventListener("submit", (event) => {
 
   if (target.id === "subject-form") {
     event.preventDefault();
-    createSubjectFromForm(target);
+    runFormInteraction(target, () => createSubjectFromForm(target), "保存中...");
     return;
   }
 
   if (target.id === "doctor-create-patient-form") {
     event.preventDefault();
-    createDoctorPatientFromForm(target);
+    runFormInteraction(target, () => createDoctorPatientFromForm(target), "建档中...");
     return;
   }
 
   if (target.dataset.uploadDocument) {
     event.preventDefault();
-    uploadSubjectDocument(target);
+    runFormInteraction(target, () => uploadSubjectDocument(target), "上传中...");
     return;
   }
 
   if (target.id === "family-qa-form") {
     event.preventDefault();
-    askFamilyQuestion(target);
+    runFormInteraction(target, () => askFamilyQuestion(target), "生成中...");
     return;
   }
 
   if (target.id === "family-feedback-form") {
     event.preventDefault();
-    submitFamilyFeedback(target);
+    runFormInteraction(target, () => submitFamilyFeedback(target), "提交中...");
   }
 });
 
@@ -1710,7 +1883,7 @@ document.querySelector("#new-subject-button").addEventListener("click", () => {
   document.querySelector("#subject-name")?.focus();
 });
 document.querySelector("#seed-button").addEventListener("click", () => {
-  resetSeedData();
+  runInteraction(document.querySelector("#seed-button"), resetSeedData, "重置中...");
 });
 
 loadData()

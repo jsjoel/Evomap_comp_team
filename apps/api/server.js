@@ -749,12 +749,17 @@ function buildFamilyHome(seed, subjectId) {
     date.setUTCDate(index + 1);
     const day = date.toISOString().slice(0, 10);
     const item = seed.familyCheckins.find((entry) => entry.subjectId === subject.id && entry.date === day);
+    const isFuture = day > today;
+    const isPast = day < today;
     return {
       date: day,
       day: index + 1,
-      status: item?.status || "open",
+      status: item?.status || (isFuture ? "future" : "open"),
       completedAt: item?.completedAt || null,
-      note: item?.note || ""
+      note: item?.note || "",
+      canCheckIn: day === today && item?.status !== "done",
+      isPast,
+      isToday: day === today
     };
   });
   const rehabAdvice = carePlan
@@ -805,7 +810,14 @@ function createFamilyCheckin(seed, body) {
     return { statusCode: 404, payload: { error: "Subject not found" } };
   }
 
-  const date = String(body.date || new Date().toISOString().slice(0, 10));
+  const today = new Date().toISOString().slice(0, 10);
+  const date = String(body.date || today);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return { statusCode: 400, payload: { error: "Invalid checkin date" } };
+  }
+  if (date !== today) {
+    return { statusCode: 400, payload: { error: "Only today's checkin is allowed" } };
+  }
   let checkin = seed.familyCheckins.find((item) => item.subjectId === subjectId && item.date === date);
   if (!checkin) {
     checkin = {
@@ -820,12 +832,15 @@ function createFamilyCheckin(seed, body) {
     };
     seed.familyCheckins.unshift(checkin);
   } else {
+    if (checkin.status === "done") {
+      return { statusCode: 200, payload: { ...checkin, alreadyCompleted: true } };
+    }
     checkin.status = "done";
     checkin.note = String(body.note || checkin.note || "").slice(0, 160);
     checkin.completedAt = nowIso();
   }
 
-  addAudit(seed, "家属端H5", "完成今日康复打卡", subjectId);
+  addAudit(seed, "家属端H5", date === today ? "完成今日康复打卡" : "补记康复打卡", subjectId);
   return { statusCode: 201, payload: checkin };
 }
 

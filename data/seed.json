@@ -182,7 +182,25 @@
       "plannedDate": "2026-06-23",
       "window": "2026-06-20 ~ 2026-06-26",
       "status": "待执行",
-      "tasks": ["实验室检查", "AE询问", "用药评估"]
+      "tasks": [
+        "实验室检查",
+        "AE询问",
+        "用药评估"
+      ]
+    },
+    {
+      "id": "VIS-004",
+      "subjectId": "SUBJ-001",
+      "code": "V1",
+      "name": "基线后14天访视",
+      "plannedDate": "2026-06-09",
+      "window": "2026-06-06 ~ 2026-06-12",
+      "status": "已完成",
+      "tasks": [
+        "体温记录",
+        "用药依从性",
+        "康复教育"
+      ]
     },
     {
       "id": "VIS-002",
@@ -192,7 +210,53 @@
       "plannedDate": "2026-06-24",
       "window": "2026-06-21 ~ 2026-06-27",
       "status": "待执行",
-      "tasks": ["体重记录", "实验室检查", "发药"]
+      "tasks": [
+        "体重记录",
+        "实验室检查",
+        "发药"
+      ]
+    },
+    {
+      "id": "VIS-005",
+      "subjectId": "SUBJ-002",
+      "code": "SCR",
+      "name": "筛选访视",
+      "plannedDate": "2026-06-10",
+      "window": "2026-06-08 ~ 2026-06-12",
+      "status": "已完成",
+      "tasks": [
+        "签署知情同意",
+        "基线评估",
+        "入组教育"
+      ]
+    },
+    {
+      "id": "VIS-006",
+      "subjectId": "SUBJ-003",
+      "code": "SCR",
+      "name": "筛选访视",
+      "plannedDate": "2026-06-21",
+      "window": "2026-06-19 ~ 2026-06-23",
+      "status": "待执行",
+      "tasks": [
+        "病历确认",
+        "ECOG评估",
+        "实验室检查"
+      ]
+    },
+    {
+      "id": "VIS-007",
+      "subjectId": "SUBJ-003",
+      "code": "PRE",
+      "name": "预筛沟通",
+      "plannedDate": "2026-06-17",
+      "window": "2026-06-16 ~ 2026-06-18",
+      "status": "已完成",
+      "tasks": [
+        "家属沟通",
+        "材料收集",
+        "初步康复宣教"
+      ]
     },
     {
       "id": "VIS-003",
@@ -202,7 +266,25 @@
       "plannedDate": "2026-06-29",
       "window": "2026-06-26 ~ 2026-07-02",
       "status": "待执行",
-      "tasks": ["体重记录", "用药依从性", "AE询问"]
+      "tasks": [
+        "体重记录",
+        "用药依从性",
+        "AE询问"
+      ]
+    },
+    {
+      "id": "VIS-008",
+      "subjectId": "SUBJ-004",
+      "code": "SCR",
+      "name": "筛选访视",
+      "plannedDate": "2026-06-15",
+      "window": "2026-06-13 ~ 2026-06-17",
+      "status": "已完成",
+      "tasks": [
+        "检查报告核对",
+        "基线体征",
+        "用药教育"
+      ]
     }
   ],
   "medications": [
@@ -216,6 +298,15 @@
       "status": "按计划"
     },
     {
+      "id": "MED-004",
+      "subjectId": "SUBJ-001",
+      "drug": "康复辅助用药",
+      "dose": "每日1次",
+      "cycle": "连续7天",
+      "nextDoseDate": "2026-06-21",
+      "status": "家属记录中"
+    },
+    {
       "id": "MED-002",
       "subjectId": "SUBJ-002",
       "drug": "研究药A",
@@ -225,6 +316,33 @@
       "status": "需确认体重"
     },
     {
+      "id": "MED-005",
+      "subjectId": "SUBJ-002",
+      "drug": "对症支持药",
+      "dose": "按需",
+      "cycle": "复诊前评估",
+      "nextDoseDate": "2026-06-24",
+      "status": "待医生确认"
+    },
+    {
+      "id": "MED-006",
+      "subjectId": "SUBJ-003",
+      "drug": "筛选期基础用药",
+      "dose": "按原方案",
+      "cycle": "每日",
+      "nextDoseDate": "2026-06-21",
+      "status": "待核对"
+    },
+    {
+      "id": "MED-007",
+      "subjectId": "SUBJ-003",
+      "drug": "康复营养补充",
+      "dose": "每日2次",
+      "cycle": "连续14天",
+      "nextDoseDate": "2026-06-22",
+      "status": "建议记录"
+    },
+    {
       "id": "MED-003",
       "subjectId": "SUBJ-004",
       "drug": "研究药B",
@@ -232,6 +350,15 @@
       "cycle": "Q4W",
       "nextDoseDate": "2026-06-29",
       "status": "按计划"
+    },
+    {
+      "id": "MED-008",
+      "subjectId": "SUBJ-004",
+      "drug": "止痛辅助药",
+      "dose": "必要时",
+      "cycle": "按症状",
+      "nextDoseDate": "2026-06-25",
+      "status": "观察中"
     }
   ],
   "tasks": [
@@ -276,7 +403,12 @@
       "status": "open"
     }
   ],
-  "roles": ["doctor_admin", "family_member", "system_agent", "evomap_operator"],
+  "roles": [
+    "doctor_admin",
+    "family_member",
+    "system_agent",
+    "evomap_operator"
+  ],
   "carePlans": [
     {
       "id": "PLAN-001",
@@ -284,8 +416,17 @@
       "summary": "随访期用药依从性和轻量康复任务",
       "diet": "少量多餐，保持优质蛋白摄入，记录食欲变化",
       "exercise": "每日步行10-15分钟，以不疲劳为限",
-      "symptomWatch": ["发热", "腹泻", "皮疹", "持续疼痛"],
-      "visitPreparation": ["记录近7天体温", "携带用药记录", "准备复诊问题"]
+      "symptomWatch": [
+        "发热",
+        "腹泻",
+        "皮疹",
+        "持续疼痛"
+      ],
+      "visitPreparation": [
+        "记录近7天体温",
+        "携带用药记录",
+        "准备复诊问题"
+      ]
     },
     {
       "id": "PLAN-002",
@@ -293,8 +434,15 @@
       "summary": "基线后用药前体重确认和家属观察",
       "diet": "清淡饮食，关注体重和水肿变化",
       "exercise": "家属陪同短距离活动，避免跌倒",
-      "symptomWatch": ["呼吸困难", "高热", "明显乏力"],
-      "visitPreparation": ["复诊前确认体重", "整理检查报告"]
+      "symptomWatch": [
+        "呼吸困难",
+        "高热",
+        "明显乏力"
+      ],
+      "visitPreparation": [
+        "复诊前确认体重",
+        "整理检查报告"
+      ]
     }
   ],
   "reminders": [
@@ -337,7 +485,10 @@
       "title": "用药前体重确认",
       "summary": "李强下一次用药前需要确认体重，建议医生管理端提醒研究护士和家属同步记录。",
       "riskLevel": "medium",
-      "evidence": ["MED-002 需确认体重", "REM-003 复诊准备"],
+      "evidence": [
+        "MED-002 需确认体重",
+        "REM-003 复诊准备"
+      ],
       "status": "candidate",
       "createdAt": "2026-06-19T12:00:00+08:00",
       "createdBy": "system_agent"
@@ -359,7 +510,10 @@
       "id": "MEM-001",
       "subjectId": "SUBJ-001",
       "summary": "家属主要关注复诊准备、用药记录和日常症状观察。",
-      "topics": ["康复教育", "复诊准备"],
+      "topics": [
+        "康复教育",
+        "复诊准备"
+      ],
       "highRiskCount": 0,
       "lowRiskCount": 1,
       "turnCount": 1,
@@ -383,10 +537,30 @@
     {
       "id": "CHK-001",
       "subjectId": "SUBJ-001",
+      "date": "2026-06-17",
+      "title": "今日康复打卡",
+      "task": "每日步行10-15分钟，以不疲劳为限",
+      "note": "已完成康复打卡",
+      "status": "done",
+      "completedAt": "2026-06-17T20:20:00+08:00"
+    },
+    {
+      "id": "CHK-002",
+      "subjectId": "SUBJ-001",
+      "date": "2026-06-18",
+      "title": "今日康复打卡",
+      "task": "每日步行10-15分钟，以不疲劳为限",
+      "note": "已完成康复打卡",
+      "status": "done",
+      "completedAt": "2026-06-18T20:20:00+08:00"
+    },
+    {
+      "id": "CHK-003",
+      "subjectId": "SUBJ-001",
       "date": "2026-06-19",
       "title": "今日康复打卡",
       "task": "每日步行10-15分钟，以不疲劳为限",
-      "note": "已完成，轻微乏力",
+      "note": "已完成康复打卡",
       "status": "done",
       "completedAt": "2026-06-19T20:20:00+08:00"
     }

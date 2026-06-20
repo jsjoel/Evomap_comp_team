@@ -27,8 +27,8 @@ test("subject detail aggregates documents, visits, medications, and tasks", asyn
   assert.equal(response.payload.name, "李强");
   assert.equal(response.payload.documents.length, 1);
   assert.equal(response.payload.extractions.length, 1);
-  assert.equal(response.payload.visits.length, 1);
-  assert.equal(response.payload.medications.length, 1);
+  assert.ok(response.payload.visits.length >= 2);
+  assert.ok(response.payload.medications.length >= 2);
   assert.equal(response.payload.tasks.length, 2);
 });
 
@@ -198,6 +198,63 @@ test("family daily rehab checkin marks today's advice done", async () => {
   assert.equal(nextHome.payload.rehabAdvice.status, "done");
   assert.equal(nextHome.payload.checkinMonth.find((day) => day.date === home.payload.rehabAdvice.date).status, "done");
   assert.equal(store.auditLogs[0].action, "完成今日康复打卡");
+});
+
+test("family checkin only allows today and keeps completed day idempotent", async () => {
+  const store = await createTestStore();
+  const home = await resolveApi("/api/family/home?subjectId=SUBJ-001", { store });
+  const today = home.payload.rehabAdvice.date;
+  const yesterday = new Date(`${today}T00:00:00.000Z`);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const pastDate = yesterday.toISOString().slice(0, 10);
+  const tomorrow = new Date(`${today}T00:00:00.000Z`);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const futureDate = tomorrow.toISOString().slice(0, 10);
+
+  const pastResponse = await resolveApi("/api/family/checkin", {
+    method: "POST",
+    store,
+    body: {
+      subjectId: "SUBJ-001",
+      date: pastDate
+    }
+  });
+  const futureResponse = await resolveApi("/api/family/checkin", {
+    method: "POST",
+    store,
+    body: {
+      subjectId: "SUBJ-001",
+      date: futureDate
+    }
+  });
+  const firstResponse = await resolveApi("/api/family/checkin", {
+    method: "POST",
+    store,
+    body: {
+      subjectId: "SUBJ-001",
+      date: today,
+      note: "已完成步行"
+    }
+  });
+  const duplicateResponse = await resolveApi("/api/family/checkin", {
+    method: "POST",
+    store,
+    body: {
+      subjectId: "SUBJ-001",
+      date: today,
+      note: "重复点击"
+    }
+  });
+  const nextHome = await resolveApi("/api/family/home?subjectId=SUBJ-001", { store });
+
+  assert.equal(pastResponse.statusCode, 400);
+  assert.equal(futureResponse.statusCode, 400);
+  assert.equal(firstResponse.statusCode, 201);
+  assert.equal(duplicateResponse.statusCode, 200);
+  assert.equal(duplicateResponse.payload.alreadyCompleted, true);
+  assert.equal(nextHome.payload.checkinMonth.find((day) => day.date === futureDate)?.status, "future");
+  assert.equal(nextHome.payload.checkinMonth.find((day) => day.date === pastDate)?.canCheckIn, false);
+  assert.equal(nextHome.payload.checkinMonth.find((day) => day.date === today)?.canCheckIn, false);
 });
 
 test("family QA routes low-risk questions to rehab education", async () => {
