@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EvoMap MVP</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">E</span>
+        <div>
+          <strong>EvoMap</strong>
+          <span>医疗康复双门户</span>
+        </div>
+      </div>
+      <nav class="nav">
+        <button class="nav-item active" data-view="dashboard">总览</button>
+        <button class="nav-item" data-view="subjects">患者建档</button>
+        <button class="nav-item" data-view="ai">AI复核</button>
+        <button class="nav-item" data-view="doctor-ai">AI分析</button>
+        <button class="nav-item" data-view="calendar">访视用药</button>
+        <button class="nav-item" data-view="tasks">任务</button>
+        <button class="nav-item" data-view="quality">质控审计</button>
+      </nav>
+    </aside>
+
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" id="portal-eyebrow">医生管理端</p>
+          <h1 id="study-title">加载中</h1>
+        </div>
+        <div class="topbar-actions">
+          <div class="portal-switch" aria-label="门户切换">
+            <button class="switch-button active" data-portal="doctor">医生管理端</button>
+            <button class="switch-button" data-portal="family">家属端</button>
+          </div>
+          <button id="seed-button" class="ghost-button">测试数据</button>
+          <button id="new-subject-button" class="primary-button">新建患者</button>
+        </div>
+      </header>
+
+      <section id="app" class="content"></section>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </main>
+
+    <dialog id="subject-dialog" class="subject-dialog">
+      <button class="dialog-close" id="dialog-close" aria-label="关闭">×</button>
+      <div id="subject-detail"></div>
+    </dialog>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

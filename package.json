@@ -1,0 +1,15 @@
+{
+  "name": "evomap",
+  "version": "0.1.0",
+  "private": true,
+  "description": "EvoMap clinical research management MVP",
+  "type": "module",
+  "scripts": {
+    "dev": "node apps/api/server.js",
+    "start": "node apps/api/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

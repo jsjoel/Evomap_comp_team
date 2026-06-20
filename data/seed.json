@@ -1,0 +1,437 @@
+{
+  "tenant": {
+    "id": "tenant-smu-001",
+    "name": "华东临研协作组"
+  },
+  "study": {
+    "id": "study-iit-2026-001",
+    "code": "IIT-EDC-001",
+    "title": "晚期实体瘤免疫联合治疗真实世界研究",
+    "phase": "MVP试点",
+    "status": "active",
+    "sites": 3,
+    "targetEnrollment": 60,
+    "principalInvestigator": "陈主任"
+  },
+  "metrics": {
+    "subjectsTotal": 4,
+    "screening": 1,
+    "enrolled": 2,
+    "followUp": 1,
+    "openTasks": 4,
+    "documentsPendingReview": 3
+  },
+  "subjects": [
+    {
+      "id": "SUBJ-001",
+      "code": "S001",
+      "name": "王敏",
+      "sex": "女",
+      "age": 52,
+      "phone": "13800001001",
+      "site": "上海第一中心",
+      "status": "随访中",
+      "risk": "normal",
+      "baselineDate": "2026-06-02",
+      "nextVisitDate": "2026-06-23",
+      "updatedAt": "2026-06-19T10:35:00+08:00"
+    },
+    {
+      "id": "SUBJ-002",
+      "code": "S002",
+      "name": "李强",
+      "sex": "男",
+      "age": 61,
+      "phone": "13800001002",
+      "site": "上海第一中心",
+      "status": "已入组",
+      "risk": "warning",
+      "baselineDate": "2026-06-10",
+      "nextVisitDate": "2026-06-24",
+      "updatedAt": "2026-06-19T11:12:00+08:00"
+    },
+    {
+      "id": "SUBJ-003",
+      "code": "S003",
+      "name": "赵燕",
+      "sex": "女",
+      "age": 47,
+      "phone": "13800001003",
+      "site": "苏州第二中心",
+      "status": "待筛选",
+      "risk": "attention",
+      "baselineDate": null,
+      "nextVisitDate": "2026-06-21",
+      "updatedAt": "2026-06-19T09:20:00+08:00"
+    },
+    {
+      "id": "SUBJ-004",
+      "code": "S004",
+      "name": "周建国",
+      "sex": "男",
+      "age": 58,
+      "phone": "13800001004",
+      "site": "杭州第三中心",
+      "status": "已入组",
+      "risk": "normal",
+      "baselineDate": "2026-06-15",
+      "nextVisitDate": "2026-06-29",
+      "updatedAt": "2026-06-19T13:05:00+08:00"
+    }
+  ],
+  "documents": [
+    {
+      "id": "DOC-001",
+      "subjectId": "SUBJ-001",
+      "type": "身份证",
+      "fileName": "S001_id_card.jpg",
+      "status": "已确认",
+      "ocrStatus": "done",
+      "reviewer": "CRC 张琳"
+    },
+    {
+      "id": "DOC-002",
+      "subjectId": "SUBJ-002",
+      "type": "知情同意书",
+      "fileName": "S002_icf.pdf",
+      "status": "待复核",
+      "ocrStatus": "done",
+      "reviewer": null
+    },
+    {
+      "id": "DOC-003",
+      "subjectId": "SUBJ-003",
+      "type": "门诊病历",
+      "fileName": "S003_medical_record.jpg",
+      "status": "待确认",
+      "ocrStatus": "done",
+      "reviewer": null
+    },
+    {
+      "id": "DOC-004",
+      "subjectId": "SUBJ-004",
+      "type": "检查报告",
+      "fileName": "S004_lab_report.pdf",
+      "status": "处理中",
+      "ocrStatus": "running",
+      "reviewer": null
+    }
+  ],
+  "extractions": [
+    {
+      "id": "EXT-001",
+      "subjectId": "SUBJ-002",
+      "documentId": "DOC-002",
+      "confidence": 0.91,
+      "status": "needs_review",
+      "fields": [
+        {
+          "name": "签署日期",
+          "value": "2026-06-10",
+          "confidence": 0.96,
+          "source": "知情同意书第1页"
+        },
+        {
+          "name": "受试者姓名",
+          "value": "李强",
+          "confidence": 0.94,
+          "source": "签名栏"
+        },
+        {
+          "name": "研究编号",
+          "value": "IIT-EDC-001",
+          "confidence": 0.84,
+          "source": "页眉"
+        }
+      ]
+    },
+    {
+      "id": "EXT-002",
+      "subjectId": "SUBJ-003",
+      "documentId": "DOC-003",
+      "confidence": 0.78,
+      "status": "needs_review",
+      "fields": [
+        {
+          "name": "诊断",
+          "value": "肺腺癌",
+          "confidence": 0.82,
+          "source": "门诊病历主诉"
+        },
+        {
+          "name": "ECOG评分",
+          "value": "1",
+          "confidence": 0.73,
+          "source": "体格检查"
+        },
+        {
+          "name": "既往治疗",
+          "value": "化疗2周期",
+          "confidence": 0.69,
+          "source": "现病史"
+        }
+      ]
+    }
+  ],
+  "visits": [
+    {
+      "id": "VIS-001",
+      "subjectId": "SUBJ-001",
+      "code": "V2",
+      "name": "第2次访视",
+      "plannedDate": "2026-06-23",
+      "window": "2026-06-20 ~ 2026-06-26",
+      "status": "待执行",
+      "tasks": ["实验室检查", "AE询问", "用药评估"]
+    },
+    {
+      "id": "VIS-002",
+      "subjectId": "SUBJ-002",
+      "code": "V1",
+      "name": "基线后14天访视",
+      "plannedDate": "2026-06-24",
+      "window": "2026-06-21 ~ 2026-06-27",
+      "status": "待执行",
+      "tasks": ["体重记录", "实验室检查", "发药"]
+    },
+    {
+      "id": "VIS-003",
+      "subjectId": "SUBJ-004",
+      "code": "V1",
+      "name": "基线后14天访视",
+      "plannedDate": "2026-06-29",
+      "window": "2026-06-26 ~ 2026-07-02",
+      "status": "待执行",
+      "tasks": ["体重记录", "用药依从性", "AE询问"]
+    }
+  ],
+  "medications": [
+    {
+      "id": "MED-001",
+      "subjectId": "SUBJ-001",
+      "drug": "研究药A",
+      "dose": "200mg",
+      "cycle": "Q2W",
+      "nextDoseDate": "2026-06-23",
+      "status": "按计划"
+    },
+    {
+      "id": "MED-002",
+      "subjectId": "SUBJ-002",
+      "drug": "研究药A",
+      "dose": "200mg",
+      "cycle": "Q2W",
+      "nextDoseDate": "2026-06-24",
+      "status": "需确认体重"
+    },
+    {
+      "id": "MED-003",
+      "subjectId": "SUBJ-004",
+      "drug": "研究药B",
+      "dose": "0.5mg/kg",
+      "cycle": "Q4W",
+      "nextDoseDate": "2026-06-29",
+      "status": "按计划"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "title": "复核李强知情同意书抽取字段",
+      "type": "AI复核",
+      "subjectId": "SUBJ-002",
+      "owner": "CRC 张琳",
+      "dueDate": "2026-06-20",
+      "priority": "high",
+      "status": "open"
+    },
+    {
+      "id": "TASK-002",
+      "title": "确认赵燕门诊病历结构化结果",
+      "type": "建档",
+      "subjectId": "SUBJ-003",
+      "owner": "CRC 王悦",
+      "dueDate": "2026-06-20",
+      "priority": "high",
+      "status": "open"
+    },
+    {
+      "id": "TASK-003",
+      "title": "王敏第2次访视前提醒",
+      "type": "访视",
+      "subjectId": "SUBJ-001",
+      "owner": "CRC 张琳",
+      "dueDate": "2026-06-22",
+      "priority": "normal",
+      "status": "open"
+    },
+    {
+      "id": "TASK-004",
+      "title": "李强用药前体重确认",
+      "type": "用药",
+      "subjectId": "SUBJ-002",
+      "owner": "研究护士 刘敏",
+      "dueDate": "2026-06-24",
+      "priority": "normal",
+      "status": "open"
+    }
+  ],
+  "roles": ["doctor_admin", "family_member", "system_agent", "evomap_operator"],
+  "carePlans": [
+    {
+      "id": "PLAN-001",
+      "subjectId": "SUBJ-001",
+      "summary": "随访期用药依从性和轻量康复任务",
+      "diet": "少量多餐，保持优质蛋白摄入，记录食欲变化",
+      "exercise": "每日步行10-15分钟，以不疲劳为限",
+      "symptomWatch": ["发热", "腹泻", "皮疹", "持续疼痛"],
+      "visitPreparation": ["记录近7天体温", "携带用药记录", "准备复诊问题"]
+    },
+    {
+      "id": "PLAN-002",
+      "subjectId": "SUBJ-002",
+      "summary": "基线后用药前体重确认和家属观察",
+      "diet": "清淡饮食，关注体重和水肿变化",
+      "exercise": "家属陪同短距离活动，避免跌倒",
+      "symptomWatch": ["呼吸困难", "高热", "明显乏力"],
+      "visitPreparation": ["复诊前确认体重", "整理检查报告"]
+    }
+  ],
+  "reminders": [
+    {
+      "id": "REM-001",
+      "subjectId": "SUBJ-001",
+      "type": "medication",
+      "title": "研究药A用药提醒",
+      "dueAt": "2026-06-23T09:00:00+08:00",
+      "channel": "family_h5",
+      "status": "open",
+      "source": "care_plan"
+    },
+    {
+      "id": "REM-002",
+      "subjectId": "SUBJ-001",
+      "type": "rehab",
+      "title": "完成步行和体温记录",
+      "dueAt": "2026-06-20T20:00:00+08:00",
+      "channel": "family_h5",
+      "status": "open",
+      "source": "care_plan"
+    },
+    {
+      "id": "REM-003",
+      "subjectId": "SUBJ-002",
+      "type": "visit",
+      "title": "基线后14天复诊准备",
+      "dueAt": "2026-06-24T08:30:00+08:00",
+      "channel": "family_h5",
+      "status": "open",
+      "source": "visit_plan"
+    }
+  ],
+  "aiSuggestions": [
+    {
+      "id": "AIS-001",
+      "subjectId": "SUBJ-002",
+      "type": "medication_adherence",
+      "title": "用药前体重确认",
+      "summary": "李强下一次用药前需要确认体重，建议医生管理端提醒研究护士和家属同步记录。",
+      "riskLevel": "medium",
+      "evidence": ["MED-002 需确认体重", "REM-003 复诊准备"],
+      "status": "candidate",
+      "createdAt": "2026-06-19T12:00:00+08:00",
+      "createdBy": "system_agent"
+    }
+  ],
+  "familyConversations": [
+    {
+      "id": "FQA-001",
+      "subjectId": "SUBJ-001",
+      "question": "复诊前需要记录什么？",
+      "answer": "建议记录体温、疼痛评分、用药完成情况和想问医生的问题。仅作康复教育与提醒，不替代医生诊疗。",
+      "riskRoute": "rehab_education",
+      "createdAt": "2026-06-19T20:10:00+08:00",
+      "storedLocally": true
+    }
+  ],
+  "familyMemories": [
+    {
+      "id": "MEM-001",
+      "subjectId": "SUBJ-001",
+      "summary": "家属主要关注复诊准备、用药记录和日常症状观察。",
+      "topics": ["康复教育", "复诊准备"],
+      "highRiskCount": 0,
+      "lowRiskCount": 1,
+      "turnCount": 1,
+      "updatedAt": "2026-06-19T20:10:00+08:00"
+    }
+  ],
+  "familyFeedback": [
+    {
+      "id": "FBK-001",
+      "subjectId": "SUBJ-001",
+      "symptoms": "轻微乏力，体温正常",
+      "temperatureC": 36.8,
+      "painScore": 2,
+      "medicationTaken": true,
+      "question": "是否需要提前复诊",
+      "status": "new",
+      "createdAt": "2026-06-19T20:15:00+08:00"
+    }
+  ],
+  "familyCheckins": [
+    {
+      "id": "CHK-001",
+      "subjectId": "SUBJ-001",
+      "date": "2026-06-19",
+      "title": "今日康复打卡",
+      "task": "每日步行10-15分钟，以不疲劳为限",
+      "note": "已完成，轻微乏力",
+      "status": "done",
+      "completedAt": "2026-06-19T20:20:00+08:00"
+    }
+  ],
+  "evolutionEvents": [
+    {
+      "id": "EVO-001",
+      "type": "local_note",
+      "summary": "family QA high-risk question now routes to doctor",
+      "geneId": "family-qa-risk-routing",
+      "capsuleId": "capsule-family-qa-risk-routing",
+      "status": "local_recorded",
+      "deidentified": true,
+      "createdAt": "2026-06-19T21:00:00+08:00"
+    }
+  ],
+  "evomapNode": {
+    "nodeId": null,
+    "status": "not_connected",
+    "hasSecret": false,
+    "lastSyncAt": null,
+    "lastError": null,
+    "lastValidationId": null
+  },
+  "auditLogs": [
+    {
+      "id": "AUD-001",
+      "actor": "CRC 张琳",
+      "action": "确认身份证字段",
+      "target": "SUBJ-001",
+      "createdAt": "2026-06-19T10:40:00+08:00"
+    },
+    {
+      "id": "AUD-002",
+      "actor": "系统",
+      "action": "生成访视计划 V2",
+      "target": "SUBJ-001",
+      "createdAt": "2026-06-19T10:42:00+08:00"
+    },
+    {
+      "id": "AUD-003",
+      "actor": "AI抽取服务",
+      "action": "生成知情同意书候选字段",
+      "target": "DOC-002",
+      "createdAt": "2026-06-19T11:10:00+08:00"
+    }
+  ]
+}
