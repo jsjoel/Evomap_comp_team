@@ -1,6 +1,6 @@
-# EvoMap MVP
+# ComfortHelper医疗康复助手
 
-EvoMap is a clinical research management MVP for patient onboarding, AI-assisted document extraction, visit/medication planning, task follow-up, and audit-ready study operations.
+ComfortHelper医疗康复助手 is a dual-portal medical rehabilitation MVP for doctor managers and patient families. It supports patient onboarding, AI-assisted document extraction, rehabilitation advice, medication and follow-up reminders, family Q&A, task follow-up, and audit-ready operations.
 
 ## Run Locally
 
@@ -9,6 +9,14 @@ npm run dev
 ```
 
 Optional LLM configuration uses an OpenAI-compatible chat completions API. Do not commit API keys.
+Family Q&A and the family portal's daily rehabilitation advice both use this API when `EVOMAP_LLM_API_KEY` is present. If the key is missing or the request fails, the UI shows `AI 本地兜底`.
+
+You can also put the key in an untracked local file:
+
+```bash
+# .env.local
+EVOMAP_LLM_API_KEY="your-key"
+```
 
 ```bash
 EVOMAP_LLM_API_KEY="your-key" \
@@ -16,6 +24,44 @@ EVOMAP_LLM_URL="https://api.evomap.ai/v1/chat/completions" \
 EVOMAP_LLM_MODEL="evomap-deepseek-v4-flash" \
 npm run dev
 ```
+
+Optional EvoMap A2A live connection is disabled by default. Without these variables, ComfortHelper only prepares official `gep-a2a` envelopes locally and does not call EvoMap.
+
+```bash
+EVOMAP_A2A_LIVE=true \
+EVOMAP_NODE_ID="node_012345abcdef" \
+EVOMAP_NODE_SECRET="your-node-secret" \
+npm run dev
+```
+
+The same A2A values can live in `.env.local`:
+
+```bash
+EVOMAP_A2A_LIVE=true
+EVOMAP_A2A_BASE_URL="https://evomap.ai"
+EVOMAP_NODE_ID="node_012345abcdef"
+EVOMAP_NODE_SECRET="your-node-secret"
+```
+
+`POST /api/evomap/hello` can be called without `EVOMAP_NODE_SECRET`; if EvoMap returns a `node_secret`, the API response redacts it and does not write it to `data/runtime.json`. Store secrets outside the repo, then pass them through environment variables.
+
+## EvoMap Live Evolution Gate
+
+The real remote closed loop is `POST /api/evomap/evolution/run-live` or:
+
+```bash
+npm run evomap:live-check
+```
+
+This path does not accept simulated or local-only remote results. It only auto-applies a local strategy when live EvoMap `hello`, memory record, memory recall, fetch, and validate all return `synced`. If any step is missing, local-only, blocked, or failed, the strategy is not changed.
+
+To create and save a real EvoMap node secret in the ignored `.env.local` file, run this only after the operator approves storing a persistent node secret:
+
+```bash
+npm run evomap:setup-node -- --save-secret
+```
+
+The setup script does not print the secret. It saves `EVOMAP_A2A_LIVE`, `EVOMAP_A2A_BASE_URL`, `EVOMAP_NODE_ID`, and `EVOMAP_NODE_SECRET`, then prints the `claimUrl` returned by EvoMap. Memory record/recall can still fail with `insufficient_node_credits`; in that case, claim the node in EvoMap and add credits before rerunning `npm run evomap:live-check`.
 
 Open:
 

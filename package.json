@@ -1,12 +1,14 @@
 {
-  "name": "evomap",
+  "name": "comforthelper-medical-rehab-assistant",
   "version": "0.1.0",
   "private": true,
-  "description": "EvoMap clinical research management MVP",
+  "description": "ComfortHelper medical rehabilitation assistant MVP",
   "type": "module",
   "scripts": {
     "dev": "node apps/api/server.js",
     "start": "node apps/api/server.js",
+    "evomap:setup-node": "node scripts/evomap-setup-node.js",
+    "evomap:live-check": "node scripts/evomap-live-check.js",
     "test": "node --test"
   },
   "engines": {

@@ -445,6 +445,88 @@
       ]
     }
   ],
+  "doctorRehabAdvice": [
+    {
+      "id": "DRA-001",
+      "subjectId": "SUBJ-001",
+      "source": "陈主任",
+      "title": "晚饭后完成10分钟慢走",
+      "advice": "以不疲劳为限，结束后记录体温、疼痛评分和皮疹、腹泻情况。",
+      "focus": "运动",
+      "priority": "normal",
+      "status": "active"
+    },
+    {
+      "id": "DRA-002",
+      "subjectId": "SUBJ-001",
+      "source": "陈主任",
+      "title": "复诊前整理近7天记录",
+      "advice": "把用药完成、食欲、体温和想问的问题写在同一页，复诊时带给医生。",
+      "focus": "复诊准备",
+      "priority": "normal",
+      "status": "active"
+    },
+    {
+      "id": "DRA-003",
+      "subjectId": "SUBJ-002",
+      "source": "陈主任",
+      "title": "先确认体重和疼痛变化",
+      "advice": "今天早晚各记录一次体重与疼痛评分，若疼痛持续升高或漏服用药，不自行调整，联系主管医生。",
+      "focus": "症状观察",
+      "priority": "attention",
+      "status": "active"
+    },
+    {
+      "id": "DRA-004",
+      "subjectId": "SUBJ-002",
+      "source": "陈主任",
+      "title": "家属陪同短距离活动",
+      "advice": "饭后在家属陪同下短距离走动，头晕、胸闷或明显乏力时立即停下并记录。",
+      "focus": "运动",
+      "priority": "normal",
+      "status": "active"
+    },
+    {
+      "id": "DRA-005",
+      "subjectId": "SUBJ-003",
+      "source": "陈主任",
+      "title": "筛选前准备病历和检查单",
+      "advice": "按时间顺序放好病历、影像和化验报告、既往治疗记录，到院前再核对一次。",
+      "focus": "复诊准备",
+      "priority": "normal",
+      "status": "active"
+    },
+    {
+      "id": "DRA-006",
+      "subjectId": "SUBJ-003",
+      "source": "陈主任",
+      "title": "焦虑时做短时呼吸放松",
+      "advice": "晚间记录睡眠、食欲和体温，不适加重时先联系医生或CRC，不自行更改既往用药。",
+      "focus": "症状观察",
+      "priority": "normal",
+      "status": "active"
+    },
+    {
+      "id": "DRA-007",
+      "subjectId": "SUBJ-004",
+      "source": "陈主任",
+      "title": "保持基线后轻量活动",
+      "advice": "每天分2次短时步行或伸展，避免空腹和过度疲劳，活动后记录耐受情况。",
+      "focus": "运动",
+      "priority": "normal",
+      "status": "active"
+    },
+    {
+      "id": "DRA-008",
+      "subjectId": "SUBJ-004",
+      "source": "陈主任",
+      "title": "观察止痛辅助药使用情况",
+      "advice": "记录疼痛发生时间、评分和是否使用止痛辅助药，复诊前汇总给医生判断。",
+      "focus": "症状观察",
+      "priority": "normal",
+      "status": "active"
+    }
+  ],
   "reminders": [
     {
       "id": "REM-001",
@@ -484,11 +566,29 @@
       "type": "medication_adherence",
       "title": "用药前体重确认",
       "summary": "李强下一次用药前需要确认体重，建议医生管理端提醒研究护士和家属同步记录。",
+      "reasoningSummary": "AI 发现李强下一次用药前仍需确认体重，同时复诊准备提醒未完成。",
       "riskLevel": "medium",
       "evidence": [
         "MED-002 需确认体重",
         "REM-003 复诊准备"
       ],
+      "evidenceItems": [
+        {
+          "source": "medication",
+          "label": "用药记录",
+          "value": "MED-002 需确认体重"
+        },
+        {
+          "source": "reminder",
+          "label": "复诊提醒",
+          "value": "REM-003 复诊准备"
+        }
+      ],
+      "recommendedAction": "确认体重和用药准备情况，必要时同步家属记录。",
+      "confidence": 0.86,
+      "strategySource": "本地默认策略 + 医生历史处理偏好",
+      "learningEligible": true,
+      "priorityScore": 72,
       "status": "candidate",
       "createdAt": "2026-06-19T12:00:00+08:00",
       "createdBy": "system_agent"
@@ -501,7 +601,63 @@
       "question": "复诊前需要记录什么？",
       "answer": "建议记录体温、疼痛评分、用药完成情况和想问医生的问题。仅作康复教育与提醒，不替代医生诊疗。",
       "riskRoute": "rehab_education",
+      "threadId": "family-SUBJ-001",
+      "turnIndex": 1,
+      "memoryId": "MEM-001",
+      "memorySummary": "家属主要关注复诊准备、用药记录和日常症状观察。",
+      "aiContext": {
+        "carePlan": "已结合当前康复计划",
+        "reminder": "已结合提醒：完成步行和体温记录",
+        "feedback": "已结合最近反馈：疼痛 2，体温 36.8",
+        "memory": "家属主要关注复诊准备、用药记录和日常症状观察。",
+        "safetyRoute": "低风险康复教育"
+      },
+      "contextUsed": [
+        "已结合当前康复计划",
+        "已结合提醒：完成步行和体温记录",
+        "已结合最近反馈：疼痛 2，体温 36.8",
+        "低风险康复教育"
+      ],
       "createdAt": "2026-06-19T20:10:00+08:00",
+      "storedLocally": true
+    },
+    {
+      "id": "FQA-002",
+      "subjectId": "SUBJ-002",
+      "threadId": "family-SUBJ-002",
+      "turnIndex": 1,
+      "question": "复诊前体重和用药怎么记录？",
+      "answer": "建议记录早晚体重、用药时间、是否漏服以及不适感，并在复诊时带给医生查看。仅作康复教育与提醒，不替代医生诊疗。",
+      "riskRoute": "rehab_education",
+      "answerProvider": "local_fallback",
+      "memoryId": "MEM-002",
+      "memorySummary": "家属关注体重、用药确认和复诊准备。",
+      "contextUsed": [
+        "已结合当前康复计划",
+        "已结合提醒：基线后14天复诊准备",
+        "暂无家属反馈",
+        "低风险康复教育"
+      ],
+      "createdAt": "2026-06-19T19:40:00+08:00",
+      "storedLocally": true
+    },
+    {
+      "id": "FQA-003",
+      "subjectId": "SUBJ-002",
+      "threadId": "family-SUBJ-002",
+      "turnIndex": 2,
+      "question": "如果疼痛加重能不能自己减药？",
+      "answer": "这个问题可能涉及处方调整，请联系主管医生；如出现胸痛、呼吸困难、意识异常或持续高热，请及时就医。仅作康复教育与提醒，不替代医生诊疗。",
+      "riskRoute": "doctor_contact",
+      "answerProvider": "local_safety_guard",
+      "memoryId": "MEM-002",
+      "memorySummary": "家属既有康复教育问题，也出现过需要医生确认的高风险问题。",
+      "contextUsed": [
+        "已结合当前康复计划",
+        "已结合提醒：基线后14天复诊准备",
+        "命中高风险分流"
+      ],
+      "createdAt": "2026-06-19T19:55:00+08:00",
       "storedLocally": true
     }
   ],
@@ -516,8 +672,32 @@
       ],
       "highRiskCount": 0,
       "lowRiskCount": 1,
+      "preferenceSummary": "家属偏好简短、可执行的复诊准备和症状记录建议。",
+      "riskPatternSummary": "暂无高风险分流记录。",
+      "lastAppliedStrategyIds": [
+        "STR-002"
+      ],
       "turnCount": 1,
       "updatedAt": "2026-06-19T20:10:00+08:00"
+    },
+    {
+      "id": "MEM-002",
+      "subjectId": "SUBJ-002",
+      "summary": "家属既关注体重和用药记录，也出现过处方调整相关高风险问题。",
+      "topics": [
+        "复诊准备",
+        "用药记录",
+        "高风险分流"
+      ],
+      "highRiskCount": 1,
+      "lowRiskCount": 1,
+      "preferenceSummary": "家属需要更明确的复诊准备清单和用药观察说明。",
+      "riskPatternSummary": "出现过自行调整用药相关问题，需优先提示联系医生。",
+      "lastAppliedStrategyIds": [
+        "STR-002"
+      ],
+      "turnCount": 2,
+      "updatedAt": "2026-06-19T19:55:00+08:00"
     }
   ],
   "familyFeedback": [
@@ -531,6 +711,28 @@
       "question": "是否需要提前复诊",
       "status": "new",
       "createdAt": "2026-06-19T20:15:00+08:00"
+    },
+    {
+      "id": "FBK-002",
+      "subjectId": "SUBJ-002",
+      "symptoms": "夜间疼痛加重，家属担心复诊前处理",
+      "temperatureC": 37.3,
+      "painScore": 6,
+      "medicationTaken": false,
+      "question": "是否需要提前联系医生",
+      "status": "new",
+      "createdAt": "2026-06-19T21:10:00+08:00"
+    },
+    {
+      "id": "FBK-003",
+      "subjectId": "SUBJ-003",
+      "symptoms": "复诊前焦虑，担心资料没带全",
+      "temperatureC": 36.7,
+      "painScore": 1,
+      "medicationTaken": true,
+      "question": "复诊材料要准备哪些",
+      "status": "new",
+      "createdAt": "2026-06-19T18:30:00+08:00"
     }
   ],
   "familyCheckins": [
@@ -540,7 +742,15 @@
       "date": "2026-06-17",
       "title": "今日康复打卡",
       "task": "每日步行10-15分钟，以不疲劳为限",
+      "completedTasks": [
+        "每日步行10-15分钟，以不疲劳为限",
+        "饮食记录：少量多餐，优先高蛋白易消化食物"
+      ],
       "note": "已完成康复打卡",
+      "mood": "平稳",
+      "fatigueLevel": 2,
+      "activityCompleted": true,
+      "warningObserved": false,
       "status": "done",
       "completedAt": "2026-06-17T20:20:00+08:00"
     },
@@ -550,7 +760,15 @@
       "date": "2026-06-18",
       "title": "今日康复打卡",
       "task": "每日步行10-15分钟，以不疲劳为限",
+      "completedTasks": [
+        "每日步行10-15分钟，以不疲劳为限",
+        "症状观察：发热、持续疼痛"
+      ],
       "note": "已完成康复打卡",
+      "mood": "平稳",
+      "fatigueLevel": 2,
+      "activityCompleted": true,
+      "warningObserved": false,
       "status": "done",
       "completedAt": "2026-06-18T20:20:00+08:00"
     },
@@ -560,9 +778,34 @@
       "date": "2026-06-19",
       "title": "今日康复打卡",
       "task": "每日步行10-15分钟，以不疲劳为限",
+      "completedTasks": [
+        "每日步行10-15分钟，以不疲劳为限",
+        "记录体温和疼痛变化"
+      ],
       "note": "已完成康复打卡",
+      "mood": "轻微疲劳",
+      "fatigueLevel": 3,
+      "activityCompleted": true,
+      "warningObserved": false,
       "status": "done",
       "completedAt": "2026-06-19T20:20:00+08:00"
+    },
+    {
+      "id": "CHK-004",
+      "subjectId": "SUBJ-002",
+      "date": "2026-06-18",
+      "title": "今日康复打卡",
+      "task": "复诊前体重和步行记录",
+      "completedTasks": [
+        "记录体重"
+      ],
+      "note": "家属记录体重，未完成步行",
+      "mood": "焦虑",
+      "fatigueLevel": 5,
+      "activityCompleted": false,
+      "warningObserved": true,
+      "status": "done",
+      "completedAt": "2026-06-18T21:10:00+08:00"
     }
   ],
   "evolutionEvents": [
@@ -572,9 +815,84 @@
       "summary": "family QA high-risk question now routes to doctor",
       "geneId": "family-qa-risk-routing",
       "capsuleId": "capsule-family-qa-risk-routing",
+      "sourceModule": "family_qa",
+      "triggerAction": "family_question_answered",
+      "impact": "high_risk_route_success",
+      "syncStatus": "local_only",
+      "traceId": "trace-seed-001",
       "status": "local_recorded",
       "deidentified": true,
       "createdAt": "2026-06-19T21:00:00+08:00"
+    }
+  ],
+  "strategyCapsules": [
+    {
+      "id": "STR-001",
+      "scope": "doctor_ai",
+      "version": "doctor-ai-v1",
+      "summary": "Prioritize combined family feedback, medication adherence, check-in dropoff, and pending document review.",
+      "source": "local_default",
+      "appliedGeneIds": [
+        "doctor-ai-action-learning"
+      ],
+      "updatedAt": "2026-06-19T21:05:00+08:00"
+    },
+    {
+      "id": "STR-002",
+      "scope": "family_qa",
+      "version": "family-qa-v1",
+      "summary": "Use family memory, current care plan, reminders, and safety routing before answering rehabilitation questions.",
+      "source": "local_default",
+      "appliedGeneIds": [
+        "family-qa-risk-routing"
+      ],
+      "updatedAt": "2026-06-19T21:05:00+08:00"
+    }
+  ],
+  "evolutionRuns": [
+    {
+      "id": "RUN-001",
+      "type": "doctor_ai_analysis",
+      "inputSummary": "Seed run: reminders, family feedback, pending extraction, and medication adherence signals.",
+      "outputSummary": "Baseline suggestions explain evidence and strategy source.",
+      "strategyVersion": "doctor-ai-v1",
+      "validationResult": "passed",
+      "createdSuggestionIds": [
+        "AIS-001"
+      ],
+      "createdAt": "2026-06-19T21:08:00+08:00"
+    }
+  ],
+  "simulationScenarios": [
+    {
+      "id": "SIM-001",
+      "name": "Stable recovery patient",
+      "signals": [
+        "completed_checkin_streak",
+        "low_pain",
+        "medication_confirmed"
+      ],
+      "expectedAiBehavior": "Keep suggestions low priority and focus on reinforcement."
+    },
+    {
+      "id": "SIM-002",
+      "name": "Pain increase with missed medication confirmation",
+      "signals": [
+        "pain_score_6",
+        "medication_unconfirmed",
+        "family_anxiety"
+      ],
+      "expectedAiBehavior": "Promote symptom follow-up or combined risk suggestion."
+    },
+    {
+      "id": "SIM-003",
+      "name": "Pending document review before visit",
+      "signals": [
+        "pending_extraction",
+        "upcoming_visit",
+        "family_visit_preparation_question"
+      ],
+      "expectedAiBehavior": "Generate document review and visit preparation suggestions."
     }
   ],
   "evomapNode": {

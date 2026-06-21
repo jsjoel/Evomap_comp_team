@@ -27,6 +27,7 @@ const state = {
   selectedDoctorSubjectId: null,
   doctorCreateMode: "upload",
   selectedFamilySubjectId: "SUBJ-001",
+  activeFamilyCheckinDate: null,
   view: "dashboard"
 };
 
@@ -107,6 +108,15 @@ function renderEmpty(text) {
   return `<p class="muted empty-state">${text}</p>`;
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function reminderTypeLabel(type) {
   return {
     medication: "用药",
@@ -121,8 +131,152 @@ function suggestionStatusLabel(status) {
     candidate: "待确认",
     accepted: "已接受",
     dismissed: "已忽略",
-    sent_to_family: "已发送家属"
+    sent_to_family: "已发送家属",
+    false_positive: "已标记误报"
   }[status] ?? status;
+}
+
+function doctorAiText(text) {
+  return String(text || "")
+    .replaceAll("进化后 AI", "AI")
+    .replaceAll("进化后策略 v2：医生反馈强化组合风险", "历史医生处理偏好")
+    .replaceAll("进化后策略 v2：医生反馈降低单一焦虑信号", "历史医生处理偏好")
+    .replaceAll("进化后策略", "历史医生处理偏好");
+}
+
+const familyFeedbackTemplates = [
+  {
+    id: "hypertension",
+    label: "高血压观察",
+    hint: "记录血压、心率和头晕胸闷等变化",
+    symptomPlaceholder: "描述头晕、胸闷、头痛、下肢水肿等变化",
+    match: /高血压|血压|降压|收缩压|舒张压|心率|胸闷|头晕/,
+    fields: [
+      { name: "systolicBp", label: "收缩压", unit: "mmHg", type: "number", placeholder: "填写收缩压" },
+      { name: "diastolicBp", label: "舒张压", unit: "mmHg", type: "number", placeholder: "填写舒张压" },
+      { name: "heartRate", label: "心率", unit: "次/分", type: "number", placeholder: "填写心率" }
+    ]
+  },
+  {
+    id: "diabetes",
+    label: "糖尿病观察",
+    hint: "记录血糖、饮食和低血糖不适",
+    symptomPlaceholder: "描述口渴、出汗、手抖、乏力、饮食变化等情况",
+    match: /糖尿病|血糖|胰岛素|低血糖|餐后|空腹血糖/,
+    fields: [
+      { name: "fastingGlucose", label: "空腹血糖", unit: "mmol/L", type: "number", step: "0.1", placeholder: "填写空腹血糖" },
+      { name: "postMealGlucose", label: "餐后血糖", unit: "mmol/L", type: "number", step: "0.1", placeholder: "填写餐后血糖" },
+      { name: "dietStatus", label: "饮食情况", unit: "", type: "text", placeholder: "例如食欲、进食量、加餐情况" }
+    ]
+  },
+  {
+    id: "postoperative",
+    label: "术后康复观察",
+    hint: "记录伤口、体温、疼痛和活动耐受",
+    symptomPlaceholder: "描述伤口红肿渗液、发热、疼痛、活动耐受等情况",
+    match: /术后|出院|伤口|切口|引流|拆线/,
+    fields: [
+      { name: "woundStatus", label: "伤口情况", unit: "", type: "text", placeholder: "填写红肿、渗液或恢复情况" },
+      { name: "temperatureC", label: "体温", unit: "℃", type: "number", step: "0.1", placeholder: "填写体温" },
+      { name: "painScore", label: "疼痛评分", unit: "/10", type: "number", min: "0", max: "10", placeholder: "填写疼痛评分" }
+    ]
+  },
+  {
+    id: "oncology",
+    label: "肿瘤治疗随访",
+    hint: "记录体温、疼痛、食欲和治疗相关不适",
+    symptomPlaceholder: "描述发热、腹泻、皮疹、持续疼痛、食欲变化等情况",
+    match: /癌|肿瘤|化疗|放疗|免疫|靶向|ECOG|发热|腹泻|皮疹|持续疼痛/,
+    fields: [
+      { name: "temperatureC", label: "体温", unit: "℃", type: "number", step: "0.1", placeholder: "填写体温" },
+      { name: "painScore", label: "疼痛评分", unit: "/10", type: "number", min: "0", max: "10", placeholder: "填写疼痛评分" },
+      { name: "appetiteStatus", label: "食欲/饮食", unit: "", type: "text", placeholder: "填写食欲、进食量或腹泻情况" }
+    ]
+  },
+  {
+    id: "general",
+    label: "通用康复观察",
+    hint: "记录今天最主要的不适和活动耐受",
+    symptomPlaceholder: "描述今天最明显的不适、活动耐受或需要医生知道的变化",
+    match: /.*/,
+    fields: [
+      { name: "mainDiscomfort", label: "主要不适", unit: "", type: "text", placeholder: "填写主要不适" },
+      { name: "activityTolerance", label: "活动耐受", unit: "", type: "text", placeholder: "填写活动后感受" }
+    ]
+  }
+];
+
+function familyFeedbackContext(home) {
+  return [
+    home?.subject?.diagnosis,
+    home?.carePlan?.summary,
+    home?.carePlan?.diet,
+    home?.carePlan?.exercise,
+    ...(home?.carePlan?.symptomWatch || []),
+    ...(home?.doctorRehabAdvice || []).flatMap((item) => [item.title, item.advice, item.focus])
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function selectFamilyFeedbackTemplate(home) {
+  const context = familyFeedbackContext(home);
+  return familyFeedbackTemplates.find((template) => template.match.test(context)) || familyFeedbackTemplates.at(-1);
+}
+
+function renderFamilyFeedbackField(field) {
+  const attrs = [
+    `name="${escapeHtml(field.name)}"`,
+    `type="${escapeHtml(field.type || "text")}"`,
+    `placeholder="${escapeHtml(field.placeholder || field.label)}"`,
+    `data-observation-field="true"`,
+    `data-observation-label="${escapeHtml(field.label)}"`,
+    `data-observation-unit="${escapeHtml(field.unit || "")}"`
+  ];
+  if (field.step) attrs.push(`step="${escapeHtml(field.step)}"`);
+  if (field.min) attrs.push(`min="${escapeHtml(field.min)}"`);
+  if (field.max) attrs.push(`max="${escapeHtml(field.max)}"`);
+
+  return `
+    <label class="feedback-field">
+      <span>${escapeHtml(field.label)}${field.unit ? `<em>${escapeHtml(field.unit)}</em>` : ""}</span>
+      <input ${attrs.join(" ")} />
+    </label>
+  `;
+}
+
+function feedbackObservationEntries(feedback) {
+  const observations = Array.isArray(feedback?.observations)
+    ? feedback.observations
+        .map((item) => ({
+          label: item.label || item.name || "观察项",
+          value: item.value,
+          unit: item.unit || ""
+        }))
+        .filter((item) => item.value !== "" && item.value != null)
+    : [];
+
+  if (observations.length) return observations;
+
+  return [
+    feedback?.temperatureC != null ? { label: "体温", value: feedback.temperatureC, unit: "℃" } : null,
+    feedback?.painScore != null ? { label: "疼痛", value: feedback.painScore, unit: "/10" } : null
+  ].filter(Boolean);
+}
+
+function feedbackMetricSummary(feedback) {
+  const entries = feedbackObservationEntries(feedback);
+  return entries.length ? entries.map((item) => `${item.label} ${item.value}${item.unit || ""}`).join(" / ") : "未填写结构化观察项";
+}
+
+function feedbackMetaMarkup(feedback) {
+  const entries = feedbackObservationEntries(feedback).slice(0, 4);
+  return `
+    <span>${feedback.symptoms}</span>
+    ${feedback.feedbackTemplateLabel ? `<span>${feedback.feedbackTemplateLabel}</span>` : ""}
+    ${entries.map((item) => `<span>${item.label} ${item.value}${item.unit || ""}</span>`).join("")}
+    <span>${feedback.medicationTaken ? "已用药" : "未确认用药"}</span>
+  `;
 }
 
 function riskLevelClass(value) {
@@ -168,14 +322,14 @@ function renderEntry() {
   document.body.classList.add("entry-mode");
   document.body.classList.remove("family-mode");
   document.body.classList.remove("doctor-flow-mode");
-  studyTitle.textContent = "EvoMap 医疗康复双入口";
+  studyTitle.textContent = "ComfortHelper医疗康复助手";
   app.innerHTML = `
     <section class="entry-page">
       <div class="entry-brand">
         <span class="brand-mark">+</span>
         <div>
-          <p class="eyebrow">EvoMap MVP</p>
-          <h1>医疗康复双入口</h1>
+          <p class="eyebrow">ComfortHelper</p>
+          <h1>医疗康复助手</h1>
         </div>
       </div>
 
@@ -240,7 +394,7 @@ function renderDashboard() {
           </div>
           <div class="button-row">
             <span class="status normal">${study.status}</span>
-            <a class="small-button link-button" href="/api/exports/subjects.csv" download="evomap-subjects.csv">导出CSV</a>
+            <a class="small-button link-button" href="/api/exports/subjects.csv" download="comforthelper-subjects.csv">导出CSV</a>
           </div>
         </div>
         ${renderSubjectsTable(state.subjects)}
@@ -596,15 +750,28 @@ function renderDoctorSubjectDetail(subject) {
   const medicationRecords = state.medications.filter((item) => item.subjectId === subject.id);
   const issueTitle = currentSuggestion?.title || feedback?.symptoms || reminder?.title || "暂无待处理事项";
   const issueDetail =
-    currentSuggestion?.summary ||
-    (feedback ? `家属反馈：${feedback.symptoms}，体温 ${feedback.temperatureC ?? "-"}℃，疼痛 ${feedback.painScore ?? "-"}` : "") ||
+    doctorAiText(currentSuggestion?.summary) ||
+    (feedback ? `家属反馈：${feedback.symptoms}；${feedbackMetricSummary(feedback)}` : "") ||
     (reminder ? `${reminderTypeLabel(reminder.type)}提醒，截止 ${reminder.dueAt}` : "当前患者暂无需要立即处理的事项。");
   const evidence = currentSuggestion?.evidence || (reminder ? [reminderTypeLabel(reminder.type), reminder.dueAt] : []);
+  const evidenceItems =
+    currentSuggestion?.evidenceItems ||
+    evidence.map((item) => ({
+      label: "依据",
+      value: item
+    }));
   const riskLabel = currentSuggestion?.riskLevel === "medium" ? "中等关注" : subject.risk === "warning" ? "需关注" : "低风险";
-  const nextAction = actionableSuggestion ? "确认这条建议后，再决定是否同步给家属" : reminder ? "处理未完成提醒，必要时重新分析" : "保持随访观察";
+  const nextAction = currentSuggestion?.recommendedAction || (actionableSuggestion ? "确认这条建议后，再决定是否同步给家属" : reminder ? "处理未完成提醒，必要时重新分析" : "保持随访观察");
   const actionTitle = actionableSuggestion ? "建议医生处理" : reminder ? "建议处理提醒" : "当前建议";
   const currentStatusLabel = currentSuggestion ? suggestionStatusLabel(currentSuggestion.status) : "无需立即处理";
-  const latestLearning = state.evolutionEvents[0]?.summary || "系统会在医生确认建议后记录脱敏改进经验";
+  const confidenceLabel = currentSuggestion?.confidence ? `${Math.round(currentSuggestion.confidence * 100)}%` : "模拟判断";
+  const strategySource = doctorAiText(currentSuggestion?.strategySource || "本地默认策略");
+  const focusMeta = [
+    `${subject.sex} · ${subject.age}岁`,
+    subject.site,
+    `下次访视 ${subject.nextVisitDate ?? "未生成"}`,
+    riskLabel
+  ];
 
   studyTitle.textContent = `${subject.name} · 患者详情`;
   app.innerHTML = `
@@ -619,55 +786,58 @@ function renderDoctorSubjectDetail(subject) {
       </div>
 
       <div class="doctor-detail-layout">
-        <aside class="doctor-summary-card">
-          <span class="step-label">患者概况</span>
-          <h3>${subject.name}</h3>
-          <p>${subject.site}</p>
-          <div class="detail-grid compact-detail-grid">
-            <div class="detail-cell"><span>性别年龄</span><strong>${subject.sex} · ${subject.age}岁</strong></div>
-            <div class="detail-cell"><span>状态</span><strong>${subject.status}</strong></div>
-            <div class="detail-cell"><span>下次访视</span><strong>${subject.nextVisitDate ?? "未生成"}</strong></div>
+        <section class="patient-brief-card">
+          <div>
+            <span class="step-label">患者概况</span>
+            <h3>${subject.name}</h3>
+            <p>${subject.code} · ${subject.status}</p>
           </div>
-          <div class="doctor-card-meta">
-            <span>${riskLabel}</span>
-            <span>${subject.code}</span>
+          <div class="brief-meta">
+            ${focusMeta.map((item) => `<span>${item}</span>`).join("")}
           </div>
-        </aside>
+        </section>
 
         <main class="doctor-workbench">
           <article class="doctor-card ai-decision-card">
-            <div class="panel-header compact-header">
-              <div>
+            <div class="ai-card-head">
+              <div class="ai-card-title">
                 <span class="step-label">AI 分析</span>
                 <h3>${issueTitle}</h3>
+                <p class="muted">${doctorAiText(currentSuggestion?.reasoningSummary) || "AI 会结合提醒、家属反馈、打卡、用药和访视记录生成患者级判断。"}</p>
               </div>
-              <span class="status ${currentSuggestion?.riskLevel === "medium" || subject.risk === "warning" ? "warning" : "normal"}">${riskLabel}</span>
+              <div class="ai-side-status">
+                <span class="status ${currentSuggestion?.riskLevel === "medium" || subject.risk === "warning" ? "warning" : "normal"}">${riskLabel}</span>
+                <strong>${confidenceLabel}</strong>
+              </div>
             </div>
-            <div class="ai-suggestion-body">
-              <div>
-                <span>建议内容</span>
+
+            <div class="ai-decision-flow">
+              <section>
+                <span>发现的问题</span>
                 <strong>${issueDetail}</strong>
-              </div>
-              <div>
-                <span>判断依据</span>
-                <strong>${evidence.length ? evidence.join(" / ") : "暂无新的家属反馈或未完成提醒"}</strong>
-              </div>
-              <div>
+              </section>
+              <section>
+                <span>绑定依据</span>
+                <strong>${evidenceItems.length ? evidenceItems.map((item) => `${item.label}：${item.value}`).join(" / ") : "暂无新的家属反馈或未完成提醒"}</strong>
+              </section>
+              <section>
                 <span>${actionTitle}</span>
                 <strong>${nextAction}</strong>
-              </div>
+              </section>
             </div>
+
             <div class="ai-action-bar">
               <div>
                 <span>处理状态</span>
-                <strong>${currentStatusLabel}</strong>
+                <strong>${currentStatusLabel} · ${strategySource}</strong>
               </div>
               <div class="ai-action-buttons">
                 ${
                   actionableSuggestion
                     ? `<button class="primary-button" data-suggestion-status="${actionableSuggestion.id}:accepted">确认建议</button>
                        <button class="small-button" data-suggestion-status="${actionableSuggestion.id}:sent_to_family">发送给家属</button>
-                       <button class="small-button" data-suggestion-status="${actionableSuggestion.id}:dismissed">暂不处理</button>`
+                       <button class="small-button" data-suggestion-status="${actionableSuggestion.id}:dismissed">暂不处理</button>
+                       <button class="small-button" data-suggestion-status="${actionableSuggestion.id}:false_positive">标记误报</button>`
                     : currentSuggestion
                       ? ""
                       : `<button class="primary-button" data-action="run-doctor-analyze">重新生成建议</button>`
@@ -677,14 +847,14 @@ function renderDoctorSubjectDetail(subject) {
             </div>
           </article>
 
-          <div class="doctor-workbench-grid single-side">
-            <article class="doctor-card">
+          <div class="doctor-workbench-grid">
+            <article class="doctor-card compact-attention-card">
               <span class="step-label">家属反馈与提醒</span>
               <h3>${subjectFeedback.length + subjectReminders.length} 项待关注</h3>
               <div class="doctor-mini-list">
                 ${
                   subjectFeedback.length
-                    ? subjectFeedback.map((item) => `<p><strong>反馈</strong><span>${item.symptoms} · 疼痛 ${item.painScore ?? "-"}</span></p>`).join("")
+                    ? subjectFeedback.map((item) => `<p><strong>反馈</strong><span>${item.symptoms} · ${feedbackMetricSummary(item)}</span></p>`).join("")
                     : ""
                 }
                 ${
@@ -693,6 +863,16 @@ function renderDoctorSubjectDetail(subject) {
                     : ""
                 }
                 ${!subjectFeedback.length && !subjectReminders.length ? "<p><strong>当前</strong><span>没有新的反馈或提醒</span></p>" : ""}
+              </div>
+            </article>
+
+            <article class="doctor-card compact-attention-card">
+              <span class="step-label">医生处理</span>
+              <h3>建议处置顺序</h3>
+              <div class="doctor-mini-list">
+                <p><strong>第一步</strong><span>确认症状趋势和今日用药是否完成</span></p>
+                <p><strong>第二步</strong><span>根据反馈决定是否电话随访或发送家属提醒</span></p>
+                <p><strong>第三步</strong><span>处理后可重新分析，刷新患者优先级</span></p>
               </div>
             </article>
           </div>
@@ -767,20 +947,6 @@ function renderDoctorSubjectDetail(subject) {
             </details>
           </div>
 
-          <article class="doctor-card learning-card">
-            <div class="panel-header compact-header">
-              <div>
-                <span class="step-label">系统学习</span>
-                <h3>脱敏改进记录</h3>
-              </div>
-              <span class="status normal">${state.evolutionEvents.length} 条</span>
-            </div>
-            <p>${latestLearning}</p>
-            <div class="doctor-card-meta">
-              ${subjectSuggestions.length ? subjectSuggestions.map((item) => `<span>${item.title}</span>`).join("") : "<span>等待医生动作后记录</span>"}
-              <span>不上传患者隐私</span>
-            </div>
-          </article>
         </main>
       </div>
     </section>
@@ -860,10 +1026,7 @@ function renderDoctorAi() {
                         <article class="item-card">
                           <p><strong>${feedback.subjectName}</strong></p>
                           <div class="item-meta">
-                            <span>${feedback.symptoms}</span>
-                            <span>体温 ${feedback.temperatureC ?? "-"}℃</span>
-                            <span>疼痛 ${feedback.painScore ?? "-"}</span>
-                            <span>${feedback.medicationTaken ? "已用药" : "未确认用药"}</span>
+                            ${feedbackMetaMarkup(feedback)}
                           </div>
                         </article>
                       `
@@ -1125,9 +1288,7 @@ function renderQuality() {
                 <article class="item-card">
                   <p><strong>${feedback.subjectName} · 家属反馈</strong></p>
                   <div class="item-meta">
-                    <span>${feedback.symptoms}</span>
-                    <span>体温 ${feedback.temperatureC ?? "-"}</span>
-                    <span>疼痛 ${feedback.painScore ?? "-"}</span>
+                    ${feedbackMetaMarkup(feedback)}
                     <span>${feedback.status}</span>
                   </div>
                 </article>
@@ -1317,6 +1478,119 @@ async function openSubject(subjectId) {
   dialog.showModal();
 }
 
+function formatCheckinDate(date) {
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return `${parsed.getMonth() + 1}月${parsed.getDate()}日`;
+}
+
+function uniqueText(items) {
+  return Array.from(new Set(items.map((item) => String(item || "").trim()).filter(Boolean)));
+}
+
+function familyCheckinTaskOptions(home, rehabAdvice, day) {
+  const doctorAdvice = (home?.doctorRehabAdvice || []).map((item) =>
+    [item.title, item.advice].filter(Boolean).join("：")
+  );
+  return uniqueText([
+    ...doctorAdvice,
+    rehabAdvice?.task && rehabAdvice?.advice ? `${rehabAdvice.task}：${rehabAdvice.advice}` : rehabAdvice?.task,
+    day?.task
+  ]).slice(0, 5);
+}
+
+function completedCheckinTasks(day) {
+  if (Array.isArray(day?.completedTasks) && day.completedTasks.length) return day.completedTasks;
+  if (Array.isArray(day?.tasks) && day.tasks.length) return day.tasks;
+  if (day?.task && day.activityCompleted !== false) return [day.task];
+  return [];
+}
+
+function renderFamilyCheckinCard(home, rehabAdvice, monthCells) {
+  if (!state.activeFamilyCheckinDate) return "";
+
+  const day = monthCells.find((item) => item.date === state.activeFamilyCheckinDate);
+  if (!day) return "";
+
+  const dateLabel = formatCheckinDate(day.date);
+  const isRecord = day.status === "done";
+  const canFill = day.canCheckIn && !isRecord;
+  const taskOptions = familyCheckinTaskOptions(home, rehabAdvice, day);
+  const completedTasks = completedCheckinTasks(day);
+  const completedSet = new Set(completedTasks);
+  const title = canFill ? `${dateLabel}康复打卡` : `${dateLabel}康复记录`;
+
+  return `
+    <div class="family-checkin-overlay" data-close-family-checkin="backdrop">
+      <article class="family-checkin-card" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
+        <button class="dialog-close family-card-close" data-close-family-checkin="button" aria-label="关闭">×</button>
+        <div class="family-card-head">
+          <h2>${escapeHtml(title)}</h2>
+        </div>
+        ${
+          canFill
+            ? `<form id="family-checkin-form" class="family-checkin-form">
+                <input type="hidden" name="date" value="${escapeHtml(day.date)}" />
+                <input type="hidden" name="title" value="${escapeHtml(rehabAdvice.title)}" />
+                <input type="hidden" name="task" value="${escapeHtml(taskOptions[0] || rehabAdvice.task)}" />
+                <div class="checkin-task-list">
+                  ${taskOptions
+                    .map(
+                      (task) => `
+                        <label class="check-task-row">
+                          <input name="completedTasks" type="checkbox" value="${escapeHtml(task)}" ${completedSet.has(task) ? "checked" : ""} />
+                          <span>${escapeHtml(task)}</span>
+                        </label>
+                      `
+                    )
+                    .join("")}
+                </div>
+                <label class="note-field">
+                  <span>记录</span>
+                  <textarea name="note" rows="4" placeholder="填写今天的康复记录">${escapeHtml(day.note || "")}</textarea>
+                </label>
+                <button class="primary-button" type="submit">保存打卡</button>
+              </form>`
+            : `<div class="checkin-record-view">
+                <div class="checkin-record-grid">
+                  <div><span>心态</span><strong>${escapeHtml(day.mood || "未记录")}</strong></div>
+                  <div><span>疲劳度</span><strong>${day.fatigueLevel == null ? "未记录" : `${escapeHtml(day.fatigueLevel)}/10`}</strong></div>
+                  <div><span>体温</span><strong>${day.temperatureC == null ? "未记录" : `${escapeHtml(day.temperatureC)}℃`}</strong></div>
+                  <div><span>疼痛</span><strong>${day.painScore == null ? "未记录" : `${escapeHtml(day.painScore)}分`}</strong></div>
+                </div>
+                <div class="checkin-daily-summary">
+                  ${day.appetite ? `<span>食欲：${escapeHtml(day.appetite)}</span>` : ""}
+                  ${day.sleepQuality ? `<span>睡眠：${escapeHtml(day.sleepQuality)}</span>` : ""}
+                  ${day.hydration ? `<span>饮水：${escapeHtml(day.hydration)}</span>` : ""}
+                  <span>${day.warningObserved ? "有异常观察" : "未见明显异常"}</span>
+                </div>
+                <div class="checkin-task-list">
+                  ${
+                    completedTasks.length
+                      ? completedTasks
+                          .map(
+                            (task) => `
+                              <label class="check-task-row">
+                                <input type="checkbox" checked disabled />
+                                <span>${escapeHtml(task)}</span>
+                              </label>
+                            `
+                          )
+                          .join("")
+                      : `<p class="muted empty-state">未记录打卡内容</p>`
+                  }
+                </div>
+                <label class="note-field">
+                  <span>记录</span>
+                  <textarea rows="4" readonly>${escapeHtml(day.note || day.vitalSummary || "未填写记录")}</textarea>
+                </label>
+              </div>`
+        }
+      </article>
+    </div>
+  `;
+}
+
 function renderFamilyPortal() {
   const home = state.familyHome;
   const subjectsOptions = state.subjects
@@ -1326,6 +1600,42 @@ function renderFamilyPortal() {
   const primaryReminder = nextReminders[0];
   const recentConversations = home.conversations.slice(0, 3);
   const qaPrompts = home.qaPrompts || ["复诊前需要记录什么？", "今天康复运动做到什么程度合适？", "哪些症状需要联系医生？"];
+  const qaPromptValue = qaPrompts[0] || "复诊前需要记录什么？";
+  const qaPromptMarkup = qaPrompts.length
+    ? `<div class="prompt-carousel" aria-label="推荐问题轮播">
+        ${qaPrompts
+          .map(
+            (prompt, index) => `
+              <button class="prompt-chip" type="button" data-qa-prompt="${escapeHtml(prompt)}" style="--prompt-index: ${index}">
+                ${escapeHtml(prompt)}
+              </button>
+            `
+          )
+          .join("")}
+      </div>`
+    : "";
+  const doctorRehabAdvice = (home.doctorRehabAdvice || []).slice(0, 2);
+  const doctorAdviceMarkup = doctorRehabAdvice.length
+    ? `<details class="doctor-rehab-details" open>
+        <summary>
+          <span>医生康复建议</span>
+          <strong>${doctorRehabAdvice.length}条</strong>
+        </summary>
+        <div class="doctor-rehab-list">
+          ${doctorRehabAdvice
+            .map(
+              (item) => `
+                <article class="doctor-rehab-item">
+                  <span>${escapeHtml(item.source || "主管医生")}${item.focus ? ` · ${escapeHtml(item.focus)}` : ""}</span>
+                  <strong>${escapeHtml(item.title || "今日康复建议")}</strong>
+                  <p>${escapeHtml(item.advice || "按医生建议完成今日康复记录。")}</p>
+                </article>
+              `
+            )
+            .join("")}
+        </div>
+      </details>`
+    : "";
   const rehabAdvice = home.rehabAdvice || {
     date: new Date().toISOString().slice(0, 10),
     title: "今日康复打卡",
@@ -1344,6 +1654,9 @@ function renderFamilyPortal() {
     }));
   const completedDays = monthCells.filter((day) => day.status === "done").length;
   const todayCell = monthCells.find((day) => day.date === rehabAdvice.date);
+  const rehabProviderMarkup =
+    rehabAdvice.provider === "evomap_llm" ? `<span class="status normal">ComfortHelper AI · ${rehabAdvice.model || "deepseek"}</span>` : "";
+  const feedbackTemplate = selectFamilyFeedbackTemplate(home);
   studyTitle.textContent = "今天的康复提醒";
   app.innerHTML = `
     <section class="family-shell">
@@ -1363,8 +1676,11 @@ function renderFamilyPortal() {
               ? `<h2>${primaryReminder.title}</h2>
                  <p class="muted">${reminderTypeLabel(primaryReminder.type)} · ${primaryReminder.dueAt}</p>
                  <button class="primary-button" data-complete-reminder="${primaryReminder.id}">我已完成</button>`
+              : doctorRehabAdvice.length
+                ? `<h2>医生今日康复建议</h2><p class="muted">今天没有新的提醒，先完成医生建议的康复记录。</p>`
               : `<h2>今天没有新的提醒</h2><p class="muted">保持记录，有不舒服随时反馈。</p>`
           }
+          ${doctorAdviceMarkup}
         </section>
 
         <section class="family-section">
@@ -1373,22 +1689,28 @@ function renderFamilyPortal() {
               <span class="step-label">2 · 月度康复打卡</span>
               <h2>${rehabAdvice.title}</h2>
             </div>
-            <span class="status normal">${completedDays}/${monthCells.length}</span>
+            ${rehabProviderMarkup}
+          </div>
+          <div class="ai-advice-meta">
+            <span>${completedDays}/${monthCells.length} 已打卡</span>
+            ${rehabAdvice.focus ? `<span>${rehabAdvice.focus}</span>` : ""}
           </div>
           <p>${rehabAdvice.task}</p>
           <div class="item-meta"><span>${rehabAdvice.advice}</span></div>
           <div class="checkin-heatmap" aria-label="月度康复打卡">
             ${monthCells
-              .map(
-                (day) => `
+              .map((day) => {
+                const canOpen = day.canCheckIn || day.status === "done";
+                const label = `${day.date}${day.status === "done" ? " 已打卡" : day.status === "future" ? " 未到日期" : day.isToday ? " 可打卡" : " 未打卡"}`;
+                return `
                   <button
-                    class="checkin-cell ${day.status === "done" ? "done" : ""} ${day.status === "future" ? "future" : ""} ${day.date === rehabAdvice.date ? "today" : ""}"
-                    ${day.canCheckIn ? `data-family-checkin="${day.date}"` : "disabled"}
-                    title="${day.date}${day.status === "done" ? " 已打卡" : day.status === "future" ? " 未到日期" : day.isToday ? " 可打卡" : " 已过期"}"
-                    aria-label="${day.date}${day.status === "done" ? " 已打卡" : day.status === "future" ? " 未到日期" : day.isToday ? " 可打卡" : " 已过期"}"
+                    class="checkin-cell ${day.status === "done" ? "done" : ""} ${day.status === "future" ? "future" : ""} ${day.isPast && day.status !== "done" ? "missed" : ""} ${day.date === rehabAdvice.date ? "today" : ""}"
+                    ${canOpen ? `data-family-checkin-card="${day.date}"` : "disabled"}
+                    title="${escapeHtml(label)}"
+                    aria-label="${escapeHtml(label)}"
                   >${day.day}</button>
-                `
-              )
+                `;
+              })
               .join("")}
           </div>
           <div class="checkin-legend">
@@ -1400,42 +1722,56 @@ function renderFamilyPortal() {
 
         <section class="family-section">
           <span class="step-label">3 · 有问题先问一句</span>
-          <div class="prompt-row">
-            ${qaPrompts.map((prompt) => `<button class="prompt-chip" data-qa-prompt="${prompt}">${prompt}</button>`).join("")}
-          </div>
+          ${qaPromptMarkup}
           <form id="family-qa-form" class="family-form">
-            <input name="question" value="复诊前需要记录什么？" />
+            <input name="question" value="${escapeHtml(qaPromptValue)}" />
             <button class="primary-button" type="submit">提问</button>
           </form>
-          <div class="qa-thread">
-            ${recentConversations
-              .map(
-                (conversation) => `
-                  <article class="answer-card">
-                    <p><strong>${conversation.riskRoute === "doctor_contact" ? "建议联系医生" : `第${conversation.turnIndex || ""}轮 · 康复建议`}</strong></p>
-                    <p class="muted">问：${conversation.question}</p>
-                    <p>${conversation.answer}</p>
-                  </article>
-                `
-              )
-              .join("")}
-          </div>
+          ${
+            recentConversations.length
+              ? `<details class="qa-history-details">
+                  <summary>
+                    <span>以前多轮建议</span>
+                    <strong>${recentConversations.length}条</strong>
+                  </summary>
+                  <div class="qa-thread">
+                    ${recentConversations
+                      .map(
+                        (conversation) => `
+                          <article class="answer-card">
+                            <p><strong>${conversation.riskRoute === "doctor_contact" ? "建议联系医生" : `第${conversation.turnIndex || ""}轮 · 康复建议`}</strong></p>
+                            <p class="muted">问：${escapeHtml(conversation.question)}</p>
+                            <p>${escapeHtml(conversation.answer)}</p>
+                          </article>
+                        `
+                      )
+                      .join("")}
+                  </div>
+                </details>`
+              : ""
+          }
         </section>
 
         <section class="family-section">
           <span class="step-label">4 · 报告今天情况</span>
           <form id="family-feedback-form" class="family-form vertical">
-            <input name="symptoms" value="轻微乏力，体温正常" />
-            <div class="family-row">
-              <input name="temperatureC" type="number" step="0.1" value="36.8" />
-              <input name="painScore" type="number" min="0" max="10" value="2" />
+            <input type="hidden" name="feedbackTemplate" value="${escapeHtml(feedbackTemplate.id)}" />
+            <input type="hidden" name="feedbackTemplateLabel" value="${escapeHtml(feedbackTemplate.label)}" />
+            <div class="feedback-template-head">
+              <strong>${escapeHtml(feedbackTemplate.label)}</strong>
+              <span>${escapeHtml(feedbackTemplate.hint)}</span>
             </div>
-            <label class="check-row"><input name="medicationTaken" type="checkbox" checked /> 已按提醒完成用药</label>
-            <input name="question" value="是否需要提前复诊" />
+            <textarea name="symptoms" rows="3" placeholder="${escapeHtml(feedbackTemplate.symptomPlaceholder)}"></textarea>
+            <div class="feedback-template-fields">
+              ${feedbackTemplate.fields.map(renderFamilyFeedbackField).join("")}
+            </div>
+            <label class="check-row"><input name="medicationTaken" type="checkbox" /> 已按提醒完成用药</label>
+            <input name="question" placeholder="想问医生或CRC的问题，可不填" />
             <button class="primary-button" type="submit">提交反馈</button>
           </form>
         </section>
       </div>
+      ${renderFamilyCheckinCard(home, rehabAdvice, monthCells)}
     </section>
   `;
 }
@@ -1452,20 +1788,12 @@ function render() {
     item.classList.toggle("active", item.dataset.portal === state.portal);
   });
   document.body.classList.toggle("family-mode", state.portal === "family");
-  navItems.forEach((item) => item.classList.toggle("active", item.dataset.view === state.view));
+  navItems.forEach((item) => item.classList.remove("active"));
   if (state.portal === "family") {
     renderFamilyPortal();
     return;
   }
   renderDoctorFlow();
-  return;
-  if (state.view === "dashboard") renderDashboard();
-  if (state.view === "subjects") renderSubjects();
-  if (state.view === "ai") renderAiReview();
-  if (state.view === "doctor-ai") renderDoctorAi();
-  if (state.view === "calendar") renderCalendar();
-  if (state.view === "tasks") renderTasks();
-  if (state.view === "quality") renderQuality();
 }
 
 async function loadData() {
@@ -1626,7 +1954,16 @@ async function runDoctorAnalyze() {
 
 async function updateSuggestionStatus(token) {
   const [suggestionId, status] = token.split(":");
-  await sendJson(`/api/doctor/suggestions/${suggestionId}`, "PATCH", { status });
+  const reasonByStatus = {
+    accepted: "医生确认该建议有处理价值。",
+    sent_to_family: "医生认为该建议适合同步给家属执行。",
+    dismissed: "医生暂不处理，保持观察。",
+    false_positive: "医生标记为误报，后续降低相似信号权重。"
+  };
+  await sendJson(`/api/doctor/suggestions/${suggestionId}`, "PATCH", {
+    status,
+    doctorDecisionReason: reasonByStatus[status] || ""
+  });
   await refresh("AI建议状态已更新");
 }
 
@@ -1649,19 +1986,33 @@ async function askFamilyQuestion(form) {
 
 async function submitFamilyFeedback(form) {
   const formData = new FormData(form);
-  await sendJson("/api/family/feedback", "POST", {
+  const observations = Array.from(form.querySelectorAll("[data-observation-field]"))
+    .map((field) => ({
+      name: field.name,
+      label: field.dataset.observationLabel || field.name,
+      unit: field.dataset.observationUnit || "",
+      value: String(field.value || "").trim()
+    }))
+    .filter((item) => item.value);
+  const payload = {
     subjectId: state.selectedFamilySubjectId,
     symptoms: formData.get("symptoms"),
+    feedbackTemplate: formData.get("feedbackTemplate"),
+    feedbackTemplateLabel: formData.get("feedbackTemplateLabel"),
+    observations,
     temperatureC: formData.get("temperatureC"),
     painScore: formData.get("painScore"),
     medicationTaken: formData.get("medicationTaken") === "on",
     question: formData.get("question")
-  });
+  };
+  await sendJson("/api/family/feedback", "POST", payload);
   await refresh("家属反馈已提交到医生端");
 }
 
-async function completeFamilyCheckin(date) {
+async function submitFamilyCheckinRecord(form) {
+  const formData = new FormData(form);
   const advice = state.familyHome?.rehabAdvice;
+  const date = String(formData.get("date") || advice?.date || new Date().toISOString().slice(0, 10));
   const today = advice?.date || new Date().toISOString().slice(0, 10);
   if (date > today) {
     showToast("未来日期不能提前打卡");
@@ -1676,14 +2027,39 @@ async function completeFamilyCheckin(date) {
     showToast("这一天已经完成打卡");
     return;
   }
-  await sendJson("/api/family/checkin", "POST", {
+  const completedTasks = formData.getAll("completedTasks").map((task) => String(task));
+  const checkin = await sendJson("/api/family/checkin", "POST", {
     subjectId: state.selectedFamilySubjectId,
     date,
-    title: advice?.title,
-    task: advice?.task,
-    note: "家属端完成今日康复打卡"
+    title: formData.get("title") || advice?.title,
+    task: formData.get("task") || advice?.task,
+    completedTasks,
+    activityCompleted: completedTasks.length > 0,
+    note: formData.get("note")
   });
-  await refresh("今日康复打卡已完成");
+  const home = state.familyHome;
+  if (home) {
+    const day = home.checkinMonth?.find((item) => item.date === checkin.date);
+    if (day) {
+      Object.assign(day, {
+        ...checkin,
+        day: day.day,
+        canCheckIn: false,
+        isToday: day.isToday,
+        isPast: day.isPast
+      });
+    }
+    if (home.rehabAdvice?.date === checkin.date) {
+      home.rehabAdvice = {
+        ...home.rehabAdvice,
+        status: "done",
+        completedAt: checkin.completedAt
+      };
+    }
+  }
+  state.activeFamilyCheckinDate = null;
+  render();
+  showToast("康复打卡已保存");
 }
 
 async function uploadSubjectDocument(form) {
@@ -1714,13 +2090,22 @@ document.addEventListener("click", (event) => {
 
   const entryPortal = target.dataset.entryPortal;
   if (entryPortal) {
+    state.activeFamilyCheckinDate = null;
     enterPortal(entryPortal);
     return;
   }
 
   const portal = target.dataset.portal;
   if (portal) {
+    state.activeFamilyCheckinDate = null;
     enterPortal(portal);
+    return;
+  }
+
+  const closeFamilyCheckin = target.dataset.closeFamilyCheckin;
+  if (closeFamilyCheckin === "button" || target.classList.contains("family-checkin-overlay")) {
+    state.activeFamilyCheckinDate = null;
+    render();
     return;
   }
 
@@ -1785,9 +2170,10 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const checkinDate = target.dataset.familyCheckin;
+  const checkinDate = target.dataset.familyCheckinCard;
   if (checkinDate) {
-    runInteraction(target, () => completeFamilyCheckin(checkinDate), "打卡中...");
+    state.activeFamilyCheckinDate = checkinDate;
+    render();
     return;
   }
 
@@ -1853,6 +2239,12 @@ document.addEventListener("submit", (event) => {
     return;
   }
 
+  if (target.id === "family-checkin-form") {
+    event.preventDefault();
+    runFormInteraction(target, () => submitFamilyCheckinRecord(target), "保存中...");
+    return;
+  }
+
   if (target.id === "family-feedback-form") {
     event.preventDefault();
     runFormInteraction(target, () => submitFamilyFeedback(target), "提交中...");
@@ -1871,6 +2263,7 @@ document.addEventListener("change", (event) => {
 
   if (target.id === "family-subject-select") {
     state.selectedFamilySubjectId = target.value;
+    state.activeFamilyCheckinDate = null;
     refresh();
   }
 });

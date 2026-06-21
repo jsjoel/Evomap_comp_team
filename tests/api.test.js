@@ -149,19 +149,56 @@ test("doctor dashboard and AI analysis generate actionable suggestions", async (
   assert.ok(store.aiSuggestions.some((suggestion) => suggestion.title.includes("提醒") || suggestion.title.includes("跟进")));
 });
 
+test("doctor AI suggestions include explainable evidence and prioritize combined risk", async () => {
+  const store = await createTestStore();
+  const analysis = await resolveApi("/api/doctor/ai/analyze", {
+    method: "POST",
+    store
+  });
+  const combinedRisk = store.aiSuggestions.find((suggestion) => suggestion.type === "combined_risk");
+  const structured = analysis.payload.suggestions.find((suggestion) => suggestion.evidenceItems?.length);
+
+  assert.equal(analysis.statusCode, 201);
+  assert.ok(structured.reasoningSummary);
+  assert.ok(structured.recommendedAction);
+  assert.ok(structured.confidence > 0);
+  assert.ok(structured.strategySource);
+  assert.ok(combinedRisk.priorityScore >= 78);
+  assert.ok(store.evolutionRuns[0].validationResult === "passed");
+});
+
 test("doctor can update AI suggestion status", async () => {
   const store = await createTestStore();
   const response = await resolveApi("/api/doctor/suggestions/AIS-001", {
     method: "PATCH",
     store,
     body: {
-      status: "accepted"
+      status: "accepted",
+      doctorDecisionReason: "组合风险需要电话随访"
     }
   });
 
   assert.equal(response.statusCode, 200);
   assert.equal(response.payload.status, "accepted");
+  assert.equal(response.payload.doctorDecisionReason, "组合风险需要电话随访");
+  assert.ok(store.evolutionEvents[0].summary.includes("Doctor accepted"));
   assert.equal(store.auditLogs[0].action, "AI建议状态更新为accepted");
+});
+
+test("doctor can mark AI suggestion as false positive for learning", async () => {
+  const store = await createTestStore();
+  const response = await resolveApi("/api/doctor/suggestions/AIS-001", {
+    method: "PATCH",
+    store,
+    body: {
+      status: "false_positive",
+      doctorDecisionReason: "症状轻微，观察即可"
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.payload.status, "false_positive");
+  assert.equal(store.evolutionEvents[0].impact, "correction_signal");
 });
 
 test("family home exposes care plan and reminders", async () => {
@@ -171,15 +208,115 @@ test("family home exposes care plan and reminders", async () => {
   assert.equal(response.statusCode, 200);
   assert.equal(response.payload.subject.id, "SUBJ-001");
   assert.equal(response.payload.carePlan.id, "PLAN-001");
-  assert.equal(response.payload.rehabAdvice.title, "今日康复打卡");
+  assert.equal(response.payload.rehabAdvice.title, "今日 AI 康复建议");
+  assert.equal(response.payload.rehabAdvice.generatedBy, "ai");
+  assert.ok(response.payload.rehabAdvice.provider);
+  assert.ok(response.payload.rehabAdvice.contextUsed.includes("当前康复计划"));
+  assert.ok(response.payload.rehabAdvice.contextUsed.includes("医生康复建议"));
+  assert.equal(response.payload.doctorRehabAdvice.length, 2);
   assert.ok(response.payload.checkinMonth.length >= 28);
   assert.equal(response.payload.qaPrompts.length, 3);
   assert.equal(response.payload.familyMemory.id, "MEM-001");
   assert.ok(response.payload.reminders.some((reminder) => reminder.type === "medication"));
 });
 
-test("family daily rehab checkin marks today's advice done", async () => {
+test("family home includes one to two doctor rehab advice items for each subject", async () => {
   const store = await createTestStore();
+
+  for (const subject of store.subjects) {
+    const response = await resolveApi(`/api/family/home?subjectId=${subject.id}`, { store });
+    const advice = response.payload.doctorRehabAdvice;
+
+    assert.equal(response.statusCode, 200);
+    assert.ok(advice.length >= 1);
+    assert.ok(advice.length <= 2);
+    assert.ok(advice.every((item) => item.subjectId === subject.id));
+    assert.ok(advice.every((item) => item.title && item.advice));
+  }
+});
+
+test("family checkin history generates rich and varied daily records", async () => {
+  const store = await createTestStore();
+  const response = await resolveApi("/api/family/home?subjectId=SUBJ-001", { store });
+  const pastRecords = response.payload.checkinMonth.filter((day) => day.isPast);
+  const generatedRecords = pastRecords.filter((day) => day.generated);
+
+  assert.ok(pastRecords.length >= 15);
+  assert.ok(pastRecords.every((day) => day.status === "done"));
+  assert.ok(pastRecords.every((day) => day.completedTasks.length >= 2));
+  assert.ok(pastRecords.every((day) => day.note && day.mood && day.vitalSummary));
+  assert.ok(pastRecords.every((day) => day.temperatureC && day.painScore != null && day.fatigueLevel != null));
+  assert.equal(new Set(pastRecords.map((day) => day.note)).size, pastRecords.length);
+  assert.ok(new Set(pastRecords.map((day) => day.completedTasks.join("|"))).size > 8);
+  assert.ok(generatedRecords.length > 0);
+});
+
+test("family home rotates three patient-specific QA prompts", async () => {
+  const store = await createTestStore();
+  const first = await resolveApi("/api/family/home?subjectId=SUBJ-001", { store });
+  const second = await resolveApi("/api/family/home?subjectId=SUBJ-002", { store });
+  const withDiagnosis = await resolveApi("/api/family/home?subjectId=SUBJ-003", { store });
+
+  assert.equal(first.payload.qaPrompts.length, 3);
+  assert.equal(new Set(first.payload.qaPrompts).size, 3);
+  assert.equal(second.payload.qaPrompts.length, 3);
+  assert.notDeepEqual(first.payload.qaPrompts, second.payload.qaPrompts);
+  assert.equal(withDiagnosis.payload.subject.diagnosis, "肺腺癌");
+  assert.ok(withDiagnosis.payload.qaPrompts.some((prompt) => prompt.includes("肺腺癌")));
+});
+
+test("family rehab advice calls EvoMap LLM when api key is configured", async () => {
+  const store = await createTestStore();
+  const originalFetch = global.fetch;
+  const originalKey = process.env.EVOMAP_LLM_API_KEY;
+  const calls = [];
+  process.env.EVOMAP_LLM_API_KEY = "test-key";
+  global.fetch = async (url, options) => {
+    calls.push({ url, body: JSON.parse(options.body), headers: options.headers });
+    return {
+      ok: true,
+      async json() {
+        return {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  task: "AI建议今日轻量步行8分钟并记录疼痛评分",
+                  advice: "晚饭后进行短时活动，如疼痛升高请暂停并记录变化。",
+                  focus: "运动"
+                })
+              }
+            }
+          ]
+        };
+      }
+    };
+  };
+
+  try {
+    const response = await resolveApi("/api/family/home?subjectId=SUBJ-001", { store });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "https://api.evomap.ai/v1/chat/completions");
+    assert.equal(calls[0].body.model, "evomap-deepseek-v4-flash");
+    assert.equal(calls[0].headers.authorization, "Bearer test-key");
+    assert.equal(response.payload.rehabAdvice.provider, "evomap_llm");
+    assert.equal(response.payload.rehabAdvice.task, "AI建议今日轻量步行8分钟并记录疼痛评分");
+    assert.equal(response.payload.rehabAdvice.focus, "运动");
+  } finally {
+    global.fetch = originalFetch;
+    if (originalKey == null) {
+      delete process.env.EVOMAP_LLM_API_KEY;
+    } else {
+      process.env.EVOMAP_LLM_API_KEY = originalKey;
+    }
+  }
+});
+
+test("family daily rehab checkin returns a transient demo record", async () => {
+  const store = await createTestStore();
+  const initialCheckins = store.familyCheckins.length;
   const home = await resolveApi("/api/family/home?subjectId=SUBJ-001", { store });
   const response = await resolveApi("/api/family/checkin", {
     method: "POST",
@@ -188,21 +325,33 @@ test("family daily rehab checkin marks today's advice done", async () => {
       subjectId: "SUBJ-001",
       date: home.payload.rehabAdvice.date,
       task: home.payload.rehabAdvice.task,
-      note: "已完成步行"
+      completedTasks: [home.payload.rehabAdvice.task, "记录体温和疼痛变化"],
+      mood: "有信心",
+      fatigueLevel: 3,
+      warningObserved: false,
+      note: "已完成步行，心态稳定"
     }
   });
   const nextHome = await resolveApi("/api/family/home?subjectId=SUBJ-001", { store });
+  const dayRecord = nextHome.payload.checkinMonth.find((day) => day.date === home.payload.rehabAdvice.date);
 
   assert.equal(response.statusCode, 201);
   assert.equal(response.payload.status, "done");
-  assert.equal(nextHome.payload.rehabAdvice.status, "done");
-  assert.equal(nextHome.payload.checkinMonth.find((day) => day.date === home.payload.rehabAdvice.date).status, "done");
-  assert.equal(store.auditLogs[0].action, "完成今日康复打卡");
+  assert.equal(response.payload.transient, true);
+  assert.deepEqual(response.payload.completedTasks, [home.payload.rehabAdvice.task, "记录体温和疼痛变化"]);
+  assert.equal(response.payload.mood, "有信心");
+  assert.equal(response.payload.fatigueLevel, 3);
+  assert.equal(store.familyCheckins.length, initialCheckins);
+  assert.equal(nextHome.payload.rehabAdvice.status, "open");
+  assert.equal(dayRecord.status, "open");
+  assert.equal(dayRecord.canCheckIn, true);
+  assert.deepEqual(dayRecord.completedTasks, []);
 });
 
-test("family checkin only allows today and keeps completed day idempotent", async () => {
+test("family checkin only allows today and remains reusable for demos", async () => {
   const store = await createTestStore();
   const home = await resolveApi("/api/family/home?subjectId=SUBJ-001", { store });
+  const initialCheckins = store.familyCheckins.length;
   const today = home.payload.rehabAdvice.date;
   const yesterday = new Date(`${today}T00:00:00.000Z`);
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
@@ -250,11 +399,13 @@ test("family checkin only allows today and keeps completed day idempotent", asyn
   assert.equal(pastResponse.statusCode, 400);
   assert.equal(futureResponse.statusCode, 400);
   assert.equal(firstResponse.statusCode, 201);
-  assert.equal(duplicateResponse.statusCode, 200);
-  assert.equal(duplicateResponse.payload.alreadyCompleted, true);
+  assert.equal(firstResponse.payload.transient, true);
+  assert.equal(duplicateResponse.statusCode, 201);
+  assert.equal(duplicateResponse.payload.transient, true);
+  assert.equal(store.familyCheckins.length, initialCheckins);
   assert.equal(nextHome.payload.checkinMonth.find((day) => day.date === futureDate)?.status, "future");
   assert.equal(nextHome.payload.checkinMonth.find((day) => day.date === pastDate)?.canCheckIn, false);
-  assert.equal(nextHome.payload.checkinMonth.find((day) => day.date === today)?.canCheckIn, false);
+  assert.equal(nextHome.payload.checkinMonth.find((day) => day.date === today)?.canCheckIn, true);
 });
 
 test("family QA routes low-risk questions to rehab education", async () => {
@@ -274,6 +425,8 @@ test("family QA routes low-risk questions to rehab education", async () => {
   assert.equal(response.payload.familyMemory.subjectId, "SUBJ-001");
   assert.ok(response.payload.turnIndex > 0);
   assert.match(response.payload.answer, /仅作康复教育与提醒/);
+  assert.ok(response.payload.contextUsed.some((item) => item.includes("康复计划")));
+  assert.equal(response.payload.aiContext.safetyRoute, "低风险康复教育");
 });
 
 test("family QA supports multi-turn memory and deidentified evolution events", async () => {
@@ -340,6 +493,49 @@ test("family feedback enters doctor dashboard and quality review", async () => {
   assert.ok(quality.payload.familyFeedback.some((feedback) => feedback.symptoms === "轻微恶心"));
 });
 
+test("family feedback stores disease-specific observation items for doctor evidence", async () => {
+  const store = await createTestStore();
+  const created = await resolveApi("/api/subjects", {
+    method: "POST",
+    store,
+    body: {
+      name: "钱明",
+      sex: "男",
+      age: 66,
+      diagnosis: "高血压",
+      currentMedication: "降压药，按医嘱服用"
+    }
+  });
+  const subjectId = created.payload.subject.id;
+
+  const feedback = await resolveApi("/api/family/feedback", {
+    method: "POST",
+    store,
+    body: {
+      subjectId,
+      symptoms: "晚间有轻微头晕",
+      feedbackTemplate: "hypertension",
+      feedbackTemplateLabel: "高血压观察",
+      observations: [
+        { name: "systolicBp", label: "收缩压", value: "142", unit: "mmHg" },
+        { name: "diastolicBp", label: "舒张压", value: "88", unit: "mmHg" },
+        { name: "heartRate", label: "心率", value: "76", unit: "次/分" }
+      ],
+      medicationTaken: true
+    }
+  });
+  const analysis = await resolveApi("/api/doctor/ai/analyze", {
+    method: "POST",
+    store
+  });
+  const suggestion = analysis.payload.suggestions.find((item) => item.subjectId === subjectId && item.type === "symptom_followup");
+
+  assert.equal(feedback.statusCode, 201);
+  assert.equal(feedback.payload.feedbackTemplate, "hypertension");
+  assert.equal(feedback.payload.observations.length, 3);
+  assert.ok(suggestion.evidenceItems.some((item) => item.label === "收缩压" && item.value === "142mmHg"));
+});
+
 test("completing reminder updates doctor and family views", async () => {
   const store = await createTestStore();
   const response = await resolveApi("/api/reminders/REM-001", {
@@ -364,16 +560,34 @@ test("EvoMap hello builds gep-a2a envelope without exposing node secret", async 
     method: "POST",
     store,
     body: {
-      nodeId: "local-test-node"
+      nodeId: "node_abcdef123456"
     }
   });
   const text = JSON.stringify(response.payload);
 
   assert.equal(response.statusCode, 200);
   assert.equal(response.payload.envelope.protocol, "gep-a2a");
-  assert.equal(response.payload.envelope.version, "1.0.0");
+  assert.equal(response.payload.envelope.protocol_version, "1.0.0");
   assert.equal(response.payload.envelope.message_type, "hello");
+  assert.ok(response.payload.envelope.message_id.startsWith("msg_"));
+  assert.equal(response.payload.envelope.sender_id, "node_abcdef123456");
+  assert.equal(response.payload.live, false);
   assert.equal(text.includes("node_secret"), false);
+});
+
+test("EvoMap hello rejects node ids that the live hub would reject", async () => {
+  const store = await createTestStore();
+  const response = await resolveApi("/api/evomap/hello", {
+    method: "POST",
+    store,
+    body: {
+      nodeId: "node_your_project_agent"
+    }
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.payload.error, "Invalid EvoMap node id");
+  assert.match(response.payload.expected, /12-32 hex/);
 });
 
 test("EvoMap payloads reject patient identifiers and raw conversation text", async () => {
@@ -428,6 +642,79 @@ test("EvoMap publish requires validate before publish", async () => {
   assert.equal(validated.statusCode, 200);
   assert.equal(published.statusCode, 200);
   assert.equal(published.payload.envelope.message_type, "publish");
+  assert.equal(validated.payload.envelope.message_type, "publish");
+  assert.equal(validated.payload.envelope.protocol_version, "1.0.0");
+  assert.equal(validated.payload.envelope.payload.assets.length, 3);
+  assert.ok(validated.payload.envelope.payload.assets.every((asset) => asset.asset_id.startsWith("sha256:")));
+});
+
+test("EvoMap memory recall prepares official fetch envelope in search-only mode", async () => {
+  const store = await createTestStore();
+  const response = await resolveApi("/api/evomap/memory/recall", {
+    method: "POST",
+    store,
+    body: {
+      query: "doctor ai combined risk"
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.payload.envelope.message_type, "fetch");
+  assert.equal(response.payload.envelope.payload.search_only, true);
+  assert.equal(response.payload.envelope.payload.asset_type, "Capsule");
+  assert.equal(response.payload.live, false);
+});
+
+test("EvoMap run-live refuses local-only mode and does not auto-apply strategy", async () => {
+  const store = await createTestStore();
+  const originalLive = process.env.EVOMAP_A2A_LIVE;
+  const originalA2aLive = process.env.A2A_LIVE;
+  process.env.EVOMAP_A2A_LIVE = "false";
+  process.env.A2A_LIVE = "false";
+
+  try {
+    const response = await resolveApi("/api/evomap/evolution/run-live", {
+      method: "POST",
+      store
+    });
+    const familyStrategy = store.strategyCapsules.find((item) => item.scope === "family_qa");
+
+    assert.equal(response.statusCode, 428);
+    assert.equal(response.payload.ok, false);
+    assert.match(response.payload.error, /EVOMAP_A2A_LIVE=true/);
+    assert.equal(familyStrategy.source, "local_default");
+    assert.equal(familyStrategy.runtimeRules, undefined);
+    assert.equal(store.evolutionEvents.some((event) => event.type === "remote_auto_apply"), false);
+  } finally {
+    if (originalLive == null) {
+      delete process.env.EVOMAP_A2A_LIVE;
+    } else {
+      process.env.EVOMAP_A2A_LIVE = originalLive;
+    }
+    if (originalA2aLive == null) {
+      delete process.env.A2A_LIVE;
+    } else {
+      process.env.A2A_LIVE = originalA2aLive;
+    }
+  }
+});
+
+test("visible evolution demo promotes combined risk after doctor feedback", async () => {
+  const store = await createTestStore();
+  const response = await resolveApi("/api/doctor/evolution-demo/run", {
+    method: "POST",
+    store
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.payload.demo.afterSuggestions[0].title, "组合风险需要优先查看");
+  assert.equal(response.payload.demo.afterSuggestions[0].priorityScore, 98);
+  assert.equal(response.payload.demo.strategy.version, "doctor-ai-v2-visible-evolution");
+  assert.equal(response.payload.demo.qaComparison.beforeRoute, "rehab_education");
+  assert.equal(response.payload.demo.qaComparison.afterRoute, "doctor_contact");
+  assert.match(response.payload.demo.qaComparison.afterAnswer, /不要自行减量|联系主管医生/);
+  assert.ok(response.payload.demo.qaComparison.capabilityDelta.includes("识别处方调整风险"));
+  assert.ok(response.payload.demo.learningSignals.positiveSignals > 0);
 });
 
 test("completing a visit moves the subject into follow-up and records audit", async () => {

@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <style>
+      .bg { fill: #f4fbf7; }
+      .panel { fill: #ffffff; stroke: #cfe8dd; stroke-width: 3; }
+      .panel-before { stroke: #b8c7c1; stroke-width: 8; }
+      .panel-after { stroke: #0f8f72; stroke-width: 8; }
+      .title { font: 800 66px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #143a34; }
+      .subtitle { font: 500 30px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #53645f; }
+      .label { font: 800 25px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #60726c; }
+      .question { font: 800 40px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #143a34; }
+      .h2 { font: 800 46px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #143a34; }
+      .pill-before { fill: #eef2f1; }
+      .pill-after { fill: #e8f7f0; }
+      .pill-text-before { font: 800 27px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #53605c; }
+      .pill-text-after { font: 800 27px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #0f8f72; }
+      .body { font: 600 35px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #213f38; }
+      .note-before { fill: #fff3e6; }
+      .note-after { fill: #e8f7f0; }
+      .note-before-text { font: 700 28px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #9b4e15; }
+      .note-after-text { font: 700 28px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #0f755e; }
+      .step { fill: #ffffff; stroke: #cfe8dd; stroke-width: 3; }
+      .step-text { font: 800 27px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #264941; }
+      .arrow { fill: #0f8f72; }
+      .arrow-text { font: 900 48px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #ffffff; }
+      .metric-title { font: 800 24px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #60726c; }
+      .metric-main { font: 800 31px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #143a34; }
+      .small { font: 600 20px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; fill: #66736f; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1920" height="1080"/>
+  <path d="M0 0 H1920 V1080 H0 Z" fill="none" stroke="#d9eee5" stroke-width="2"/>
+
+  <text class="label" x="86" y="78">EvoMap Agent Self-Evolution Demo</text>
+  <text class="title" x="86" y="154">同一问题的智能能力修正</text>
+  <text class="subtitle" x="86" y="207">核心不是“记住历史”，而是在医生反馈和 EvoMap 召回后，改变下一轮问答判断。</text>
+
+  <rect class="panel" x="1510" y="58" width="320" height="96" rx="12"/>
+  <text class="h2" x="1542" y="116" font-size="38">v1 → v2</text>
+  <text class="small" x="1543" y="143">Doctor feedback + EvoMap memory</text>
+
+  <rect class="panel" x="86" y="260" width="1748" height="118" rx="10"/>
+  <text class="label" x="126" y="312">同一个家属问题</text>
+  <text class="question" x="126" y="356">疼痛加重，能不能自己减量？</text>
+  <text class="label" x="1240" y="312">患者上下文</text>
+  <text class="question" x="1240" y="356">疼痛 7 / 用药未确认 / 打卡中断</text>
+
+  <rect class="panel panel-before" x="86" y="430" width="720" height="380" rx="12"/>
+  <text class="h2" x="126" y="505">进化前 Agent</text>
+  <rect class="pill-before" x="126" y="535" width="310" height="54" rx="27"/>
+  <text class="pill-text-before" x="154" y="571">误判为：康复教育</text>
+  <text class="body" x="126" y="642">建议记录疼痛评分，</text>
+  <text class="body" x="126" y="692">复诊时告诉医生。</text>
+  <text class="body" x="126" y="742">没有触发医生分流。</text>
+  <rect class="note-before" x="126" y="772" width="620" height="92" rx="8"/>
+  <text class="note-before-text" x="154" y="817">问题：未识别“自行减量”</text>
+  <text class="note-before-text" x="154" y="853">属于处方调整风险。</text>
+
+  <rect class="step" x="850" y="463" width="220" height="64" rx="10"/>
+  <text class="step-text" x="902" y="505">医生纠正</text>
+  <rect class="arrow" x="850" y="552" width="220" height="82" rx="41"/>
+  <text class="arrow-text" x="932" y="610">→</text>
+  <rect class="step" x="850" y="660" width="220" height="72" rx="10"/>
+  <text class="step-text" x="884" y="705">脱敏学习事件</text>
+  <rect class="step" x="850" y="758" width="220" height="88" rx="10"/>
+  <text class="step-text" x="889" y="795">EvoMap</text>
+  <text class="step-text" x="876" y="828">record / recall</text>
+
+  <rect class="panel panel-after" x="1110" y="430" width="724" height="380" rx="12"/>
+  <text class="h2" x="1150" y="505">进化后 Agent</text>
+  <rect class="pill-after" x="1150" y="535" width="392" height="54" rx="27"/>
+  <text class="pill-text-after" x="1178" y="571">修正为：医生联系 / 安全分流</text>
+  <text class="body" x="1150" y="642">不要自行减量或调整用药。</text>
+  <text class="body" x="1150" y="692">结合疼痛升高、用药未确认、</text>
+  <text class="body" x="1150" y="742">打卡中断，联系主管医生。</text>
+  <rect class="note-after" x="1150" y="772" width="620" height="92" rx="8"/>
+  <text class="note-after-text" x="1178" y="817">能力变化：从“记录建议”</text>
+  <text class="note-after-text" x="1178" y="853">升级为“安全分流”。</text>
+
+  <rect class="panel" x="86" y="872" width="540" height="116" rx="10"/>
+  <text class="metric-title" x="126" y="918">风险识别</text>
+  <text class="metric-main" x="126" y="964">未命中处方调整 → 命中高风险分流</text>
+
+  <rect class="panel" x="690" y="872" width="540" height="116" rx="10"/>
+  <text class="metric-title" x="730" y="918">上下文利用</text>
+  <text class="metric-main" x="730" y="964">单问题回答 → 多信号联合判断</text>
+
+  <rect class="panel" x="1294" y="872" width="540" height="116" rx="10"/>
+  <text class="metric-title" x="1334" y="918">处置动作</text>
+  <text class="metric-main" x="1334" y="964">记录症状 → 联系医生 / 就医边界</text>
+
+  <text class="small" x="86" y="1040">Data is simulated and de-identified. Generated for presentation screenshot only.</text>
+</svg>
